@@ -2,7 +2,7 @@
 #SEIR model for RSV-------
 ########################## #
 
-setwd("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/INTERNSHIP/SIR model")
+setwd("/home/phuong/phuonght/gitKraken_project/RSV")
 
 library(deSolve)
 
@@ -17,12 +17,12 @@ library(deSolve)
 ######################################### #
 # MODEL SETTINGS                     ----
 ######################################### #
-pop_size          <- 10000
+pop_size          <- 100000
 num_days          <- 500
 R0                <- 3
 num_days_infected <- 6.7
 num_days_exposed  <- 4
-num_days_waning   <-230
+num_days_waning   <- 230
 infected_seeds    <- 100 # ? 
 
 ######################################### #
@@ -95,7 +95,7 @@ params     <- c(beta = beta, gamma = gamma, nui = nui, v = v)
 ######################################### #
 # use the 'ode' function of deSolve package with our SIR function, health states and parameters
 out <- ode(func = sirv_func, y = states, times = times, parms = params)
-plot(out)
+# plot(out)
 
 # convert the 'out' matrix into a data-frame (to enable the use of '$' to access a column by name)
 out <- as.data.frame(out)
