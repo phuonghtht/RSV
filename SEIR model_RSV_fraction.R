@@ -19,29 +19,52 @@ library(deSolve)
 ######################################### #
 pop_size          <- 100000
 num_days          <- 500
+num_weeks         <- 52*5
 R0                <- 3
 num_days_infected <- 6.7
 num_days_exposed  <- 4
-num_days_waning   <- 230
+num_days_waning   <- 230 # best fit : 23.5 weeks => 164.5days
+num_weeks_waning  <- 23.5
 infected_seeds    <- 100 # ? 
 
 ######################################### #
 # INITIALIZE PARAMETERS AND POPULATION ----
 ######################################### #
 # recovery parameter
-nui  <- 1/num_days_infected
+nui  <- 1/(num_days_infected/7)
 # transmission parameter
-beta   <- R0*nui
+beta0 <- 1.99 #average transmission rate
+beta1 <- 0.65 #degree of seasonality [ 0,1], higher value stronger seasonal driver
+phi <- 2.43 # shift phase
+# beta <- beta0*(1+beta1*cos(2*pi*t/52)+phi)## t need to be updated 
+
 #rate of movement from latent to infectious stage
-gamma <- 1/ num_days_exposed
+gamma <- 1/(num_days_exposed/7)
 # duration of immunity
-v <- 1/ num_days_waning 
+v <- 1/(num_days_waning/7)
+# death rate 
+mu <- 1/(80*52)
+# birth rate
+muo <- 1/(80*52)
 
 # # population states
 S <- 1 - (infected_seeds/pop_size)
 E <- infected_seeds/pop_size
 I <- 0
 R <- 0
+
+######################################### #
+# SET FUNCTION PARAMETERS            ----
+######################################### #
+# set time frame
+times      <- seq(0, num_weeks, by = 1)
+
+# set initial health states
+states     <- c(S = S,E = E, I = I, R = R)
+
+# set parameters
+params     <- c(gamma = gamma, nui = nui, v = v,mu = mu,
+                beta0 = beta0, beta1 = beta1, phi = phi)
 
 ######################################### #
 # CREATE SIRV FUNCTION               ----
@@ -53,52 +76,51 @@ R <- 0
 #
 # Note: updating the health states over time and keeping track of the changes, is handled by the
 # ode-function of the 'deSolve' package.
-sirv_func <- function(times, states, params) {
+sirv_func <- function(t, states, params) {
 
   # rename states and parameters
   S     <- states['S']
   E     <- states['E']
   I     <- states['I']
   R     <- states['R']
-  beta  <- params['beta']
-  gamma <- params['gamma']
-  nui   <- params['nui']
+  beta <- beta0*(1+beta1*cos(2*pi*t/52)+phi)
+  # gamma <- params['gamma']
+  # nui   <- params['nui']
+  # v   <- params['v']
+  
 
 
   # calculate state changes
-  dS <- -beta*S*I + v*R
-  dE <- beta*S*I - gamma*E
-  dI <- gamma*E - nui*I
-  dR <- nui*I - v*R
+  dS <- muo -beta*S*I + v*R - mu*S
+  dE <- beta*S*I - gamma*E - mu*E
+  dI <- gamma*E - nui*I -mu*I
+  dR <- nui*I - v*R - mu*R
 
   # return (dS, dI, dR) as a vector in a list (required for the 'solve' function)
   return(list(c(dS, dE, dI, dR)))
 }
-
-
-######################################### #
-# SET FUNCTION PARAMETERS            ----
-######################################### #
-# set time frame
-times      <- seq(0, num_days, by = 1)
-
-# set initial health states
-states     <- c(S = S,E = E, I = I, R = R)
-
-# set parameters
-params     <- c(beta = beta, gamma = gamma, nui = nui, v = v)
-
-
 
 ######################################### #
 # SOLVE ODE                          ----
 ######################################### #
 # use the 'ode' function of deSolve package with our SIR function, health states and parameters
 out <- ode(func = sirv_func, y = states, times = times, parms = params)
-# plot(out)
+plot(out)
 
 # convert the 'out' matrix into a data-frame (to enable the use of '$' to access a column by name)
 out <- as.data.frame(out)
+
+# total population
+pop<-out[,"S"]+out[,"E"]+out[,"I"]+out[,"R"]
+# weekly incidence
+# inc <- params["report"]*params["gamma"]*out[,"E"]
+inc <- params["gamma"]*out[,"E"]*pop_size
+# make a new panel
+par(mfrow=c(1,2))
+# more plots
+time<-out[,"time"]
+plot(time,pop,type='l',lwd=3)
+plot(time,inc,type='l',lwd=3)
 
 
 ######################################### #
