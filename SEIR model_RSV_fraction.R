@@ -25,13 +25,14 @@ num_days_infected <- 6.7
 num_days_exposed  <- 4
 num_days_waning   <- 230 # best fit : 23.5 weeks => 164.5days
 num_weeks_waning  <- 23.5
-infected_seeds    <- 100 # ? 
+infected_seeds    <- 1 # ? 
 
 ######################################### #
 # INITIALIZE PARAMETERS AND POPULATION ----
 ######################################### #
+#https://steemit.com/science/@fouad/x-history-of-math-symbols
 # recovery parameter
-nui  <- 1/(num_days_infected/7)
+gamma  <- 1/(num_days_infected/7)
 # transmission parameter
 beta0 <- 1.99 #average transmission rate
 beta1 <- 0.65 #degree of seasonality [ 0,1], higher value stronger seasonal driver
@@ -39,13 +40,13 @@ phi <- 2.43 # shift phase
 # beta <- beta0*(1+beta1*cos(2*pi*t/52)+phi)## t need to be updated 
 
 #rate of movement from latent to infectious stage
-gamma <- 1/(num_days_exposed/7)
+sigma <- 1/(num_days_exposed/7)
 # duration of immunity
-v <- 1/(num_days_waning/7)
+nu <- 1/(num_days_waning/7)
 # death rate 
-mu <- 1/(80*52)
+eta <- 1/(80*52)
 # birth rate
-muo <- 1/(80*52)
+mu <- 1/(80*52)
 
 # # population states
 S <- 1 - (infected_seeds/pop_size)
@@ -63,7 +64,7 @@ times      <- seq(0, num_weeks, by = 1)
 states     <- c(S = S,E = E, I = I, R = R)
 
 # set parameters
-params     <- c(gamma = gamma, nui = nui, v = v,mu = mu,
+params     <- c(gamma = gamma, nu = nu,mu = mu,
                 beta0 = beta0, beta1 = beta1, phi = phi)
 
 ######################################### #
@@ -91,10 +92,10 @@ sirv_func <- function(t, states, params) {
 
 
   # calculate state changes
-  dS <- muo -beta*S*I + v*R - mu*S
-  dE <- beta*S*I - gamma*E - mu*E
-  dI <- gamma*E - nui*I -mu*I
-  dR <- nui*I - v*R - mu*R
+  dS <- mu -beta*S*I + nu*R - eta*S
+  dE <- beta*S*I - sigma*E - eta*E
+  dI <- sigma*E - gamma*I - eta*I
+  dR <- gamma*I - nu*R - eta*R
 
   # return (dS, dI, dR) as a vector in a list (required for the 'solve' function)
   return(list(c(dS, dE, dI, dR)))
@@ -114,11 +115,11 @@ out <- as.data.frame(out)
 pop<-out[,"S"]+out[,"E"]+out[,"I"]+out[,"R"]
 # weekly incidence
 # inc <- params["report"]*params["gamma"]*out[,"E"]
-inc <- params["gamma"]*out[,"E"]*pop_size
+inc <- params["sigma"]*out[,"E"]*pop_size
 # make a new panel
 par(mfrow=c(1,2))
 # more plots
-time<-out[,"time"]
+time <- out[,"time"]
 plot(time,pop,type='l',lwd=3)
 plot(time,inc,type='l',lwd=3)
 
