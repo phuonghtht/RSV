@@ -31,7 +31,7 @@ initI <- 0 # Infectious
 initR <- 0 # Immune
 initS <- initP - initE - initI - initR # Susceptible
 # set time frame
-times      <- seq(0, num_weeks, by = 1)
+times      <- seq(1, num_weeks, by = 1)
 # set initial health states
 states <- c(S = initS, E = initE, I = initI, R = initR)
 # set parameters
@@ -43,8 +43,7 @@ params     <- c(sigma = 7/ num_days_exposed, #rate of movement from latent to in
                 beta1=0.65,                  # the degree of seasonality, range [0,1],higher value stronger seasonal drivers
                 phi=2.43,                    # phase shift?
                 beta0=1.99,                  #average transmission rate
-                R0 =3,
-                report =1/7
+                R0 =3
                 )  
                 
 
@@ -67,8 +66,8 @@ RSV<-function(t, states, params)
          
          # define variables
          P <- (S+E+I+R)
-         beta <-beta0(1+beta1*cos(2*pi*t/52+phi))
-         lam <- beta0*I/P
+         beta <- beta0*(1+beta1*cos(2*pi*t/52+phi))
+         lam <- beta*I/P
          
          
          # rate of change
