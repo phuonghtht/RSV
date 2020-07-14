@@ -10,8 +10,9 @@ library(ggplot2)
 # MODEL SETTINGS                     ----
 ######################################### #
 pop_size          <- 2200000
+# pop_size          <- 245249 # birth cohort 0-9 yrs
 num_days          <- 500
-num_weeks         <- 52*6 
+num_weeks         <- 52*10
 num_days_infected <- 10  #[ 8-11], 6.7 is original estimate
 num_days_exposed  <- 4   # [2,6]
 num_days_waning   <- 160  # [148, 164] best fit 
@@ -23,10 +24,9 @@ infected_seeds    <- 5# ? 1= 1000
 #https://steemit.com/science/@fouad/x-history-of-math-symbols
 
 #  population states
-# S2 <- 0.9 # change this initial stage do change the pattern of peaks
 S1 <- 2/80
-E1 <- infected_seeds/(pop_size*S1) 
-I1 <- 0
+E1 <- 0 
+I1 <- infected_seeds/(pop_size)
 R1 <- 0
 
 E2 <- 0
@@ -58,7 +58,7 @@ params     <- c(sigma = 1/0.57, #rate of movement from latent to infectious stag
                 beta1 = 0.65,                # the degree of seasonality, range [0,1],higher value stronger seasonal drivers
                 phi = 2.43,                  # phase shift?
                 beta0 = 1.99,                #average transmission rate
-                # R0 = 3,                      # reproduction number
+                # R0 = 3,                     # reproduction number
                 delta = 0.65,                # scaled susceptibility
                 alpha = 0.65                 # scaled infectiousness
 )  
@@ -106,6 +106,9 @@ sirv_func <- function(t, states, params) {
 out <- ode(func = sirv_func, y = states, times = times, parms = params)
 plot(out)
 # summary(out)
+times_output <- seq(num_weeks-(52*6)+15,num_weeks,1)
+out <- out[out[,1] %in% times_output,]
+out[,1] <- out[,1] - min(out[,1])
 
 # par(mfrow = c(1,1))
 # matplot(out[,1], out[,2:9], type = "l", xlab = "time", ylab = "population fraction")
@@ -144,9 +147,9 @@ plot(time,inc2,type='l',lwd=3, col = 1)
 
 
 
-# par(mfrow = c(1,1))
-# matplot(out[,1], out[,2:5], type = "l", xlab = "time", ylab = "population fraction")
-# legend("topright", col = 1:4, lty = 1:4, legend = c(colnames(out)[2:5]))
+par(mfrow = c(1,1))
+matplot(out[,1], out[,2:5], type = "l", xlab = "time", ylab = "population fraction")
+legend("topright", col = 1:4, lty = 1:4, legend = c(colnames(out)[2:5]))
 
 # # plot susceptible class
 # par(mfrow = c(1,1))
@@ -175,8 +178,8 @@ aus_data <- read.csv ("./RSV data/Australia_RSV_2yrs_Hannah Moore.csv")
 # Western Austrilia : 4920 RSV  (<- 2yrs, 2000-2005) positive
 
 # ensuring the total number of cases over the 6 years of
-## the study and the model agreed, ### 3394 cases less than 2yrs
-inc <- inc*pop_size/(sum(inc*pop_size)/4920)
+# the study and the model agreed, ### 3394 cases less than 2yrs
+inc <- inc*pop_size/(sum(inc*pop_size)/3394)
 sum_inc <- sum(inc)
 sum_inc
 
@@ -191,3 +194,4 @@ bel_data <- read.csv("./RSV data/RSV_cases_time_epistat.csv")
 bel_data$week <- seq(1,dim(bel_data)[1])
 ggplot(bel_data, aes(week, cases))+
   geom_line()
+
