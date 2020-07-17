@@ -9,10 +9,10 @@ library(ggplot2)
 ######################################### #
 # MODEL SETTINGS                     ----
 ######################################### #
-pop_size          <- 2200000
+pop_size          <- 1100000
 # pop_size          <- 245249 # birth cohort 0-9 yrs
 num_days          <- 500
-num_weeks         <- 52*10
+num_weeks         <- 52*11
 num_days_infected <- 10  #[ 8-11], 6.7 is original estimate
 num_days_exposed  <- 4   # [2,6]
 num_days_waning   <- 160  # [148, 164] best fit 
@@ -44,13 +44,16 @@ times      <- seq(1, num_weeks, by = 1)
 states     <- c(S1 = S1,E1 = E1, I1 = I1, R1 = R1,
                 S2 = S2,E2 = E2, I2 = I2, R2 = R2)
 
+# DEFINE FUNCTION TO RUN ODE WITH PARAMETER VECTOR X
+x <- c(7/num_days_exposed,7/num_days_infected,0) # sigma, gamma 
+
 # set parameters
-params     <- c(sigma = 1/0.57, #rate of movement from latent to infectious stage
-                gamma = 1/1.4, # recovery rate
-                # sigma = 7/ num_days_exposed, #rate of movement from latent to infectious stage
-                # gamma = 7/num_days_infected, # recovery rate
-                nu= 0.044,     # rate of loss of immunity
-                # nu=  7/ num_days_waning,     # rate of loss of immunity
+params     <- c(#sigma = 1/0.57, #rate of movement from latent to infectious stage
+                #gamma = 1/1.4, # recovery rate
+                sigma = x[1], #rate of movement from latent to infectious stage
+                gamma = x[2], # recovery rate
+                # nu= 0.044,     # rate of loss of immunity
+                nu=  7/ num_days_waning,     # rate of loss of immunity
                 eta1 = 1/(2*52),             # aging rate 
                 eta2 = 1/(78*52),            # aging rate 
                 # eta = 1/(80*52),             # death rate in general
@@ -106,7 +109,7 @@ sirv_func <- function(t, states, params) {
 out <- ode(func = sirv_func, y = states, times = times, parms = params)
 plot(out)
 # summary(out)
-times_output <- seq(num_weeks-(52*6)+15,num_weeks,1)
+times_output <- seq(num_weeks-(52*8)+36,num_weeks,1)
 out <- out[out[,1] %in% times_output,]
 out[,1] <- out[,1] - min(out[,1])
 
@@ -147,9 +150,9 @@ plot(time,inc2,type='l',lwd=3, col = 1)
 
 
 
-par(mfrow = c(1,1))
-matplot(out[,1], out[,2:5], type = "l", xlab = "time", ylab = "population fraction")
-legend("topright", col = 1:4, lty = 1:4, legend = c(colnames(out)[2:5]))
+# par(mfrow = c(1,1))
+# matplot(out[,1], out[,2:5], type = "l", xlab = "time", ylab = "population fraction")
+# legend("topright", col = 1:4, lty = 1:4, legend = c(colnames(out)[2:5]))
 
 # # plot susceptible class
 # par(mfrow = c(1,1))
@@ -172,26 +175,132 @@ legend("topright", col = 1:4, lty = 1:4, legend = c(colnames(out)[2:5]))
 #        cex    = 0.9)
 # 
 
-#COMPARING THE MODEL OUTPUT WITH DATA--------------
-aus_data <- read.csv ("./RSV data/Australia_RSV_2yrs_Hannah Moore.csv")
-# metropolitan: 15830 samples ( <- 2yrs, 2000-2005), possitive 21% ( n= 3394)
-# Western Austrilia : 4920 RSV  (<- 2yrs, 2000-2005) positive
-
-# ensuring the total number of cases over the 6 years of
-# the study and the model agreed, ### 3394 cases less than 2yrs
-inc <- inc*pop_size/(sum(inc*pop_size)/3394)
-sum_inc <- sum(inc)
-sum_inc
-
-par(mfrow=c(1,1))
-# label axes
-plot(time,inc,type='l',lwd=3,main = "Predicted RSV",xlab = "Time in weeks",ylab="New reported cases per week",ylim=c(0,max(aus_data[,"Cases"],inc)))
-# plot the data with the model output
-points(aus_data[,"Week"],aus_data[,"Cases"],pch=19,col='red')
-
 #BELGIUM DATA-----------------
 bel_data <- read.csv("./RSV data/RSV_cases_time_epistat.csv")
+# total cases: 63301 , less than 2yrs: 56126
+pro_case_less2yrs <- 56126/63301
 bel_data$week <- seq(1,dim(bel_data)[1])
-ggplot(bel_data, aes(week, cases))+
-  geom_line()
+bel_data$cases.less2yrs <- round(bel_data$cases*pro_case_less2yrs)
+# ggplot(bel_data, aes(week, cases.less2yrs))+
+#   geom_point()
+
+######################################### #
+# MODEL FITTING                        ----
+######################################### #
+
+# DEFINE HELP FUNCTION TO CALCULATE SUM OF SQUARES
+get_sum_of_squares <- function(model_values,ref_values) {
+  return(sum(sqrt((model_values-ref_values)^2)))
+}
+
+# SET GOAL: to use the optimisation package
+library(Rcpp)
+library(optimization)
+
+# 1. create (dummy) function which takes 2 parameters and returns a score
+hi <- function(x){get_sum_of_squares(0:10,seq(x[1],x[2],length=11))} # 11 pairs of value?
+
+# 2. use optimization with Nelder-Mead
+round(optim_nm(fun = hi, k = 2)$par)
+
+
+# plot real data
+par(mfrow = c(1,1))
+plot(bel_data$week,
+     bel_data$cases.less2yrs,
+     ylim = c(0, max(bel_data$cases.less2yrs)*1.5))
+
+# plot initial model
+lines(out$time,out$I1*pop_size,col=2,lwd=2)
+
+# score for initial model
+get_sum_of_squares(out$I1[length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
+
+# DEFINE FUNCTION TO RUN ODE WITH PARAMETER VECTOR X
+# x <- c(7/num_days_exposed,7/num_days_infected,0) # sigma, gamma 
+
+get_model_output <- function(x){
+  
+  # get output
+  out <- data.frame(ode(func = sirv_func, y = states, times = seq(0,num_weeks,1), parms = params))
+  
+  # shift in time (fill with 0)
+  out <- approx(x   = out$time + x[3],
+                y   = out$I1,
+                xout = seq(0,num_weeks,1),
+                rule = 2)
+  names(out) <- c('time','I1')
+  
+  # rescale time points
+  out$time <- out$time - min(out$time)
+  
+  # return output
+  return(out)
+}
+
+# HELP FUNCTION TO CALCULATE SUM OF SQUARES GIVEN PARAMETERS 'X'
+get_parameter_score <- function(x) {
+  
+  # get model output given the parameters in "x"
+  model_out <- get_model_output(x)
+  
+  # get model score
+  model_score <- get_sum_of_squares(out$I1[length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
+  
+  # return model score
+  return(model_score)
+}
+
+# try some combinations
+get_parameter_score(c(1.75,0.7,0))
+get_parameter_score(c(1.645, 0.805,1))
+get_parameter_score(c(1.645, 0.805,15))
+
+
+# HELP FUNCTION TO VISUALIZE THE MODEL FITTING
+plot_model_fit <- function(x){
+  
+  # get model output given the parameters in "x"
+  model_out <- get_model_output(x)
+  
+  # get model score
+  model_score <- get_sum_of_squares(out$I1[length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
+  
+  # plot reference data
+  plot(bel_data$week,
+       bel_data$cases.less2yrs,
+       ylim = c(0,max(bel_data$cases.less2yrs)*1.5),
+       main = paste('score:',round(model_score,digits = 2)))
+  
+  # plot initial model
+  lines(model_out$time,model_out$I1*pop_size,col=2,lwd=2)
+  
+}
+
+# try some combinations
+get_parameter_score(c(1.75,0.7,0))
+get_parameter_score(c(1.645, 0.805,1))
+get_parameter_score(c(1.645, 0.805,15))
+
+
+# Nelder-Mead optimisation
+opt_param <- optim_nm(fun = get_parameter_score, start = c(7/2,7/8,1))$par
+plot_model_fit(opt_param)
+
+# initial values have an effect...
+opt_param <- optim_nm(fun = get_parameter_score, start = c(7/2,7/8,-1))$par
+plot_model_fit(opt_param)
+
+# try other function, by specifing lower and upper values
+opt_param_sa <- optim_sa(fun = get_parameter_score, start = c(0.1,0.1,-1),
+                         trace = FALSE, 
+                         lower = c(7/2, 7/8,-10),
+                         upper = c(7/6, 7/11,20),
+                         control = list(dyn_rf = FALSE,
+                                        rf = 1.2,
+                                        t0 = 10, nlimit = 500, r = 0.6, t_min = 0.1
+                         ))$par
+plot_model_fit(opt_param_sa)
+
+# to be continued...
 
