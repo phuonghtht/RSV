@@ -9,8 +9,7 @@ library(ggplot2)
 ######################################### #
 # MODEL SETTINGS                     ----
 ######################################### #
-pop_size          <- 1100000
-# pop_size          <- 245249 # birth cohort 0-9 yrs
+pop_size          <- 1100000 # Belgium pop size
 num_days          <- 500
 num_weeks         <- 52*11
 num_days_infected <- 10  #[ 8-11], 6.7 is original estimate
@@ -24,12 +23,13 @@ infected_seeds    <- 5# ? 1= 1000
 #https://steemit.com/science/@fouad/x-history-of-math-symbols
 
 #  population states
-S1 <- 2/80
-E1 <- 0 
-I1 <- infected_seeds/(pop_size)
+
+S1 <- 2/80 # less than 2 yrs old
+E1 <- infected_seeds/(pop_size)
+I1 <- 0
 R1 <- 0
 
-E2 <- 0
+E2 <- 0 # greater than 2 yrs old
 I2 <- 0
 R2 <- 0
 S2 <- 1-S1-E1-I1-R1-E2-I2-R2 
@@ -38,20 +38,17 @@ S2 <- 1-S1-E1-I1-R1-E2-I2-R2
 # SET FUNCTION PARAMETERS            ----
 ######################################### #
 # set time frame
-times      <- seq(1, num_weeks, by = 1)
+times      <- seq(0, num_weeks, by = 1)
 
 # set initial health states
 states     <- c(S1 = S1,E1 = E1, I1 = I1, R1 = R1,
                 S2 = S2,E2 = E2, I2 = I2, R2 = R2)
 
-# DEFINE FUNCTION TO RUN ODE WITH PARAMETER VECTOR X
-x <- c(7/num_days_exposed,7/num_days_infected,0) # sigma, gamma 
-
 # set parameters
-params     <- c(#sigma = 1/0.57, #rate of movement from latent to infectious stage
-                #gamma = 1/1.4, # recovery rate
-                sigma = x[1], #rate of movement from latent to infectious stage
-                gamma = x[2], # recovery rate
+params     <- c(sigma = 1/0.57, #rate of movement from latent to infectious stage
+                gamma = 1/1.4, # recovery rate
+                # sigma = x[1], #rate of movement from latent to infectious stage
+                # gamma = x[2], # recovery rate
                 # nu= 0.044,     # rate of loss of immunity
                 nu=  7/ num_days_waning,     # rate of loss of immunity
                 eta1 = 1/(2*52),             # aging rate 
@@ -109,9 +106,9 @@ sirv_func <- function(t, states, params) {
 out <- ode(func = sirv_func, y = states, times = times, parms = params)
 plot(out)
 # summary(out)
-times_output <- seq(num_weeks-(52*8)+36,num_weeks,1)
-out <- out[out[,1] %in% times_output,]
-out[,1] <- out[,1] - min(out[,1])
+times_output <- seq(num_weeks-(52*8)-2,num_weeks,1)# burning time ## shifting peaks
+out <- out[out[,1] %in% times_output,] # skip the initial time points
+out[,1] <- out[,1] - min(out[,1])# rescale time points
 
 # par(mfrow = c(1,1))
 # matplot(out[,1], out[,2:9], type = "l", xlab = "time", ylab = "population fraction")
@@ -181,8 +178,10 @@ bel_data <- read.csv("./RSV data/RSV_cases_time_epistat.csv")
 pro_case_less2yrs <- 56126/63301
 bel_data$week <- seq(1,dim(bel_data)[1])
 bel_data$cases.less2yrs <- round(bel_data$cases*pro_case_less2yrs)
-# ggplot(bel_data, aes(week, cases.less2yrs))+
+## score for initial model
+ # ggplot(bel_data, aes(week, cases.less2yrs))+
 #   geom_point()
+
 
 ######################################### #
 # MODEL FITTING                        ----
@@ -198,10 +197,10 @@ library(Rcpp)
 library(optimization)
 
 # 1. create (dummy) function which takes 2 parameters and returns a score
-hi <- function(x){get_sum_of_squares(0:10,seq(x[1],x[2],length=11))} # 11 pairs of value?
+hi <- function(x){get_sum_of_squares(0:10,seq(x[1],x[2],length=11))} 
 
 # 2. use optimization with Nelder-Mead
-round(optim_nm(fun = hi, k = 2)$par)
+round(optim_nm(fun = hi, k = 2)$par)# k= 2 parameters
 
 
 # plot real data
@@ -214,15 +213,20 @@ plot(bel_data$week,
 lines(out$time,out$I1*pop_size,col=2,lwd=2)
 
 # score for initial model
-get_sum_of_squares(out$I1[length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
+get_sum_of_squares(out$I1[1:length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
 
 # DEFINE FUNCTION TO RUN ODE WITH PARAMETER VECTOR X
-# x <- c(7/num_days_exposed,7/num_days_infected,0) # sigma, gamma 
+x <- c(7/num_days_exposed, 7/num_days_infected, 0) # sigma, gamma
 
 get_model_output <- function(x){
   
-  # get output
-  out <- data.frame(ode(func = sirv_func, y = states, times = seq(0,num_weeks,1), parms = params))
+   # params_fitting
+  params_fit = params
+  params_fit["sigma"] = x[1]
+  params_fit["gamma"] = x[2]
+  
+   # get output
+  out <- data.frame(ode(func = sirv_func, y = states, times = seq(0,num_weeks,1), parms = params_fit))
   
   # shift in time (fill with 0)
   out <- approx(x   = out$time + x[3],
@@ -245,7 +249,7 @@ get_parameter_score <- function(x) {
   model_out <- get_model_output(x)
   
   # get model score
-  model_score <- get_sum_of_squares(out$I1[length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
+  model_score <- get_sum_of_squares(model_out$I1[length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
   
   # return model score
   return(model_score)
@@ -253,8 +257,9 @@ get_parameter_score <- function(x) {
 
 # try some combinations
 get_parameter_score(c(1.75,0.7,0))
-get_parameter_score(c(1.645, 0.805,1))
-get_parameter_score(c(1.645, 0.805,15))
+get_parameter_score(c(1.75,0.7,154))
+get_parameter_score(c(1.645, 0.7,0))
+get_parameter_score(c(1, 0.7,0))
 
 
 # HELP FUNCTION TO VISUALIZE THE MODEL FITTING
@@ -264,12 +269,12 @@ plot_model_fit <- function(x){
   model_out <- get_model_output(x)
   
   # get model score
-  model_score <- get_sum_of_squares(out$I1[length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
+  model_score <- get_sum_of_squares(model_out$I1[length(bel_data$cases)]*pop_size,bel_data$cases.less2yrs)
   
   # plot reference data
   plot(bel_data$week,
        bel_data$cases.less2yrs,
-       ylim = c(0,max(bel_data$cases.less2yrs)*1.5),
+       ylim = c(0,max(bel_data$cases.less2yrs)*2),
        main = paste('score:',round(model_score,digits = 2)))
   
   # plot initial model
@@ -278,24 +283,26 @@ plot_model_fit <- function(x){
 }
 
 # try some combinations
-get_parameter_score(c(1.75,0.7,0))
-get_parameter_score(c(1.645, 0.805,1))
-get_parameter_score(c(1.645, 0.805,15))
+plot_model_fit(c(1.75,0.7,-154))
+plot_model_fit(c(1.645, 0.7,50))
+plot_model_fit(c(1, 0.7,0))
 
 
 # Nelder-Mead optimisation
-opt_param <- optim_nm(fun = get_parameter_score, start = c(7/2,7/8,1))$par
+opt_param <- optim_nm(fun = get_parameter_score, start = c(7/6,7/11,-154))$par
 plot_model_fit(opt_param)
 
 # initial values have an effect...
-opt_param <- optim_nm(fun = get_parameter_score, start = c(7/2,7/8,-1))$par
+opt_param <- optim_nm(fun = get_parameter_score, start = c(7/6,7/11,-102))$par
 plot_model_fit(opt_param)
 
 # try other function, by specifing lower and upper values
-opt_param_sa <- optim_sa(fun = get_parameter_score, start = c(0.1,0.1,-1),
+# num_days_infected <- 10 #[ 8-11]
+# num_days_exposed  <- 4  # [2,6]
+opt_param_sa <- optim_sa(fun = get_parameter_score, start = c(7/6, 7/11,-154),
                          trace = FALSE, 
-                         lower = c(7/2, 7/8,-10),
-                         upper = c(7/6, 7/11,20),
+                         lower = c(7/6, 7/11,-154),#
+                         upper = c(7/2, 7/8,-52),
                          control = list(dyn_rf = FALSE,
                                         rf = 1.2,
                                         t0 = 10, nlimit = 500, r = 0.6, t_min = 0.1
