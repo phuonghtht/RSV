@@ -14,10 +14,10 @@ library(tidyverse)
 ######################################### #
 pop_size          <- 11000000 # https://statbel.fgov.be/en, 11492641, growth rate 0.54%
 num_days          <- 500
-num_weeks         <- 52*20
+num_weeks         <- 52*9
 num_days_infected <- 10  #[ 8-11], 6.7 is original estimate
 num_days_exposed  <- 4   # [2,6]
-num_days_waning   <- 160  # [148, 164] best fit 
+num_days_waning   <- 200  # [148, 164] best fit 
 infected_seeds    <- 10# 
 
 ######################################### #
@@ -55,25 +55,28 @@ states     <- c(S1 = S1,E1 = E1, I1 = I1, R1 = R1,
                 S3 = S3,E3 = E3, I3 = I3, R3 = R3)
 
 # set parameters
-params     <- c(sigma = 7/num_days_exposed, #rate of movement from latent to infectious stage
-                gamma = 7/num_days_infected, # recovery rate
-                # sigma = x[1], #rate of movement from latent to infectious stage
-                # gamma = x[2], # recovery rate
-                # nu= 0.044,     # rate of loss of immunity
-                nu=  7/ num_days_waning,    # rate of loss of immunity
+params     <- c(sigma = 91.479/52, #rate of movement from latent to infectious stage
+                gamma = 40.11/52, # recovery rate
+                # sigma = 7/num_days_exposed, #rate of movement from latent to infectious stage
+                # gamma = 7/num_days_infected, # recovery rate
+          
+                nu=1.585/52,     # rate of loss of immunity
+                # nu=  7/ num_days_waning,    # rate of loss of immunity
                 eta1 = 1/(1*52),            # aging rate 1 yr old 
                 eta2 = 1/(1*52),            # aging rate 2 yrs old
                 eta3 = 1/(78*52),           # aging rate > 2 yrs old
-                # eta = 1/(80*52),             # death rate in general
-                mu = 1/(80*52),             # birth rate 1.66 2020
-                beta1 = 0.65,               # the degree of seasonality, range [0,1],higher value stronger seasonal drivers
-                phi = 2.43,                 # phase shift?
-                beta0 = 2.05,               # average transmission rate# this
-                
-                # # for 3 classes of age
-                # beta1 = 0.522,               # the degree of seasonality, range [0,1],higher value stronger seasonal drivers
+                mu = 0.0135/52,             # birth rate 
+                # mu = 1/(80*52),             # birth rate 1.66 2020
+                #Hannha Moore ref
+                # beta1 = 0.65,               # the degree of seasonality, range [0,1],higher value stronger seasonal drivers
                 # phi = 2.43,                 # phase shift?
-                # beta0 = 530,               #average transmission
+                # # beta0 = 2.05,               # average transmission rate# this
+                # beta0 = 10.19,               # average transmission rate# this
+                
+                # for 3 classes of age
+                beta1 = 0.522,               # the degree of seasonality, range [0,1],higher value stronger seasonal drivers
+                phi = 2.43,                 # phase shift?
+                beta0 = 460/52,               #average transmission
                 
                 # R0 = 3,                   # reproduction number
                 delta2 = 0.228,             # scaled susceptibility
@@ -99,8 +102,8 @@ sirv_func <- function(t, states, params) {
          
          # define variables
          # P <- (S1+E1+I1+R1+S2+E2+I2+R2)
-         beta <- beta0*(1+beta1*cos(2*pi*t/52+phi))
-         # beta <- beta0*(1+beta1*sin(2*pi*t/52))#
+         # beta <- beta0*(1+beta1*cos(2*pi*t/52+phi))
+         beta <- beta0*(1+beta1*sin(2*pi*t/52))#
          
          
          # calculate state changes
@@ -114,8 +117,8 @@ sirv_func <- function(t, states, params) {
          dI2 <- eta1*I1 + sigma*E2 - eta2*I2 - gamma*I2
          dR2 <- eta1*R1 + gamma*I2 - eta2*R2 - nu*R2
          
-         dS3 <- eta2*S2 - delta3*beta*S3*(I1 + alpha2*I2 + alpha3*I3) - eta3*S3 + nu*R3
-         dE3 <- eta2*E2 + delta3*beta*S3*(I1 + alpha2*I2 + alpha3*I3) - eta3*E3 - sigma*E3
+         dS3 <- eta2*S2 - delta3*delta2*beta*S3*(I1 + alpha2*I2 + alpha3*I3) - eta3*S3 + nu*R3
+         dE3 <- eta2*E2 + delta3*delta2*beta*S3*(I1 + alpha2*I2 + alpha3*I3) - eta3*E3 - sigma*E3
          dI3 <- eta2*I2 + sigma*E3 - eta3*I3 - gamma*I3
          dR3 <- eta2*R2 + gamma*I3 - eta3*R3 - nu*R3
          
@@ -254,7 +257,7 @@ plot(bel_data$week,
 
 # plot initial model
 lines(out$time,out$I1*pop_size,col=2,lwd=2)
-# plot(out$time,out$I1*pop_size,col=2,lwd=2)
+plot(out$time,out$I1*pop_size,col=2,lwd=2)
 
 # score for initial model
 get_sum_of_squares(out$I1[1:length(bel_data$cases)]*pop_size,bel_data$cases.1yr)
