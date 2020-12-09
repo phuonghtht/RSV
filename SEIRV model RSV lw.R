@@ -126,8 +126,8 @@ out <- as.data.frame(out)
 names(out)
 
 # calculate age-specific incidence
-out$I1_incidence <- out$I1*pop_size_ag1
-out$I2_incidence <- out$I2*pop_size_ag2
+out$I1_incidence <- out$I1*pop_size
+out$I2_incidence <- out$I2*pop_size
 
 ######################################### #
 # REFERENCE DATA                     ----
