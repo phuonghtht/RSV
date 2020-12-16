@@ -14,10 +14,10 @@ library(tidyverse)
 ######################################### #
 pop_size          <- 11000000 # https://statbel.fgov.be/en, 11492641, growth rate 0.54%
 num_days          <- 500
-num_weeks         <- 52*9
+num_weeks         <- 52*10
 num_days_infected <- 10  #[ 8-11], 6.7 is original estimate
 num_days_exposed  <- 4   # [2,6]
-num_days_waning   <- 200  # [148, 164] best fit 
+num_days_waning   <- 200*(365/200)*10  # [148, 164] best fit 
 infected_seeds    <- 10# 
 
 ######################################### #
@@ -27,20 +27,24 @@ infected_seeds    <- 10#
 
 #  population states
 
-S1 <- 1/80 # less than 1 yrs old
-E1 <- infected_seeds/(pop_size)
+# less than 1 yrs old
+E1 <- 10/(pop_size/80)# 10 infected seeds
 I1 <- 0
 R1 <- 0
+S1 <- 1 - E1 - I1 - R1 
 
-E2 <- 0 #  [0,2)
+#  [0,2)
+E2 <- 5/(pop_size/80) # 5 infected seed
 I2 <- 0
 R2 <- 0
-S2 <- 0
+S2 <- 1 - E1 - I1 - R1
 
-E3 <- 0 # > 2
+# > 2
+
+E3 <- 2/(pop_size/80*78)  # 2 infected seeds
 I3 <- 0
-R3 <- 0
-S3 <- 1-S1-E1-I1-R1-S2-E2-I2-R2-E3-I3-R3
+R3 <- 
+S3 <- 1- E1 - I1 - R1
 
 
 ######################################### #
@@ -55,18 +59,25 @@ states     <- c(S1 = S1,E1 = E1, I1 = I1, R1 = R1,
                 S3 = S3,E3 = E3, I3 = I3, R3 = R3)
 
 # set parameters
-params     <- c(sigma = 91.479/52, #rate of movement from latent to infectious stage
-                gamma = 40.11/52, # recovery rate
-                # sigma = 7/num_days_exposed, #rate of movement from latent to infectious stage
-                # gamma = 7/num_days_infected, # recovery rate
+params     <- c(#sigma = 91.479/52, #rate of movement from latent to infectious stage
+                # gamma = 40.11/52, # recovery rate
+                sigma = 7/num_days_exposed, #rate of movement from latent to infectious stage
+                gamma = 7/num_days_infected, # recovery rate
           
                 nu=1.585/52,     # rate of loss of immunity
                 # nu=  7/ num_days_waning,    # rate of loss of immunity
-                eta1 = 1/(1*52),            # aging rate 1 yr old 
-                eta2 = 1/(1*52),            # aging rate 2 yrs old
-                eta3 = 1/(78*52),           # aging rate > 2 yrs old
+                
+                eta1 = 1/52,            # aging rate 1 yr old 
+                eta2 = 1/52,            # aging rate 2 yrs old
+                eta3 = 0.0139/52,           # aging rate > 2 yrs old
+                
+                # eta1 = 1/(1*52),            # aging rate 1 yr old 
+                # eta2 = 1/(1*52),            # aging rate 2 yrs old
+                # eta3 = 1/(78*52),           # aging rate > 2 yrs old
+                
                 mu = 0.0135/52,             # birth rate 
                 # mu = 1/(80*52),             # birth rate 1.66 2020
+                
                 #Hannha Moore ref
                 # beta1 = 0.65,               # the degree of seasonality, range [0,1],higher value stronger seasonal drivers
                 # phi = 2.43,                 # phase shift?
@@ -101,9 +112,13 @@ sirv_func <- function(t, states, params) {
        {
          
          # define variables
-         # P <- (S1+E1+I1+R1+S2+E2+I2+R2)
+        
+         # S1+E1+I1+R1 = 1
+         # S2+E2+I2+R2 = 1
+         # S3+E3+I3+R3 = 1
+         
          # beta <- beta0*(1+beta1*cos(2*pi*t/52+phi))
-         beta <- beta0*(1+beta1*sin(2*pi*t/52))#
+         beta <- beta0*(1+beta1*sin(2*pi*t/52)) #
          
          
          # calculate state changes
@@ -133,15 +148,15 @@ sirv_func <- function(t, states, params) {
 ######################################### #
 # use the 'ode' function of deSolve package with our SIR function, health states and parameters
 out <- ode(func = sirv_func, y = states, times = times, parms = params)
-# plot(out)
+plot(out)
 # out <- as.data.frame(out)
 # par(mfrow=c(1,1))
 # plot(out$time, out$I1)
 
-# summary(out)
-times_output <- seq(num_weeks-(52*8)-2,num_weeks,1)# burning time ## shifting peaks
-out <- out[out[,1] %in% times_output,] # skip the initial time points
-out[,1] <- out[,1] - min(out[,1])# rescale time points
+# # summary(out)
+# times_output <- seq(num_weeks-(52*8)-2,num_weeks,1)# burning time ## shifting peaks
+# out <- out[out[,1] %in% times_output,] # skip the initial time points
+# out[,1] <- out[,1] - min(out[,1])# rescale time points
 
 # par(mfrow = c(1,1))
 # matplot(out[,1], out[,2:9], type = "l", xlab = "time", ylab = "population fraction")
@@ -154,13 +169,13 @@ out[,1] <- out[,1] - min(out[,1])# rescale time points
 
 # convert the 'out' matrix into a data-frame (to enable the use of '$' to access a column by name)
 out <- as.data.frame(out)
-# out$S <- out[,"S1"] + out[,"S2"] + out[,"S3"]
-# out$E <- out[,"E1"] + out[,"E2"] + out[,"E3"]
-# out$I <- out[,"I1"] + out[,"I2"] + out[,"I3"]
-# out$R <- out[,"R1"] + out[,"R2"] + out[,"R3"]
+out$S <- out[,"S1"] + out[,"S2"] + out[,"S3"]
+out$E <- out[,"E1"] + out[,"E2"] + out[,"E3"]
+out$I <- out[,"I1"] + out[,"I2"] + out[,"I3"]
+out$R <- out[,"R1"] + out[,"R2"] + out[,"R3"]
 
 # Total population
-# pop <- out[,"S"] + out[,"E"] + out[,"I"] + out[,"R"]
+pop <- out[,"S"] + out[,"E"] + out[,"I"] + out[,"R"]
 
 # weekly incidence
 inc <- out[,"I1"]
@@ -171,7 +186,7 @@ inc3 <- out[,"I3"]
 # inc2<- inc2*pop_size
 
 time <- out[,"time"]
-# plot(time,pop,type='l',lwd=3,ylim = c(0,2))# checking the consistence of pop
+plot(time,pop,type='l',lwd=3,ylim = c(0,3))# checking the consistence of pop
 
 # Plo"infectious" proportion I
 ggplot(out%>%gather(key = "I", value = "value", starts_with("I")),
