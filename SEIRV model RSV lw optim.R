@@ -61,7 +61,7 @@ params     <- c(sigma = 1/0.57, #rate of movement from latent to infectious stag
                 eta1 = 1/(1*52),             # aging rate
                 eta2 = 1/(79*52),            # aging rate
                 # eta = 1/(80*52),           # death rate in general
-                mu = 1/(80*52),              # birth rate
+                mu = 1/(79*52),              # birth rate
                 beta1 = 0.89,                # the degree of seasonality, range [0,1],higher value stronger seasonal drivers
                 phi = 2.43,                  # phase shift?
                 beta0 = 1.99,                # average transmission rate
@@ -294,7 +294,7 @@ opt_param_sa <- optim_sa(fun = get_parameter_score,
                                         r = 0.6, 
                                         t_min = 0.1
                          ))$par
-# plot_model_fit(opt_param_sa)
+plot_model_fit(opt_param_sa)
 opt_param_sa
 
 # [1]    0.54    0.76    0.89 -153.37
