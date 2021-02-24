@@ -114,13 +114,13 @@ sirv_func <- function(t, states, params) {
   )
 }
 
-# plot the forcing seasonal function
-t = seq(1,200,1) # weekly
-beta0 = 1.99
-beta1 = 0.65 #[0,1] # the higiher beta1 the higher variation of beta = stronger seasonality driver
-phi= 1.5# peak position ~ week 40 , but Belgium peak at week 48 or 49 (1.5,2.5)
-y  <- beta0*(1+beta1*cos(2*pi*t/52+phi))
-plot(t,y,type="l", xlab="time", ylab="wave")
+# # plot the forcing seasonal function
+# t = seq(1,200,1) # weekly
+# beta0 = 1.99
+# beta1 = 0.65 #[0,1] # the higiher beta1 the higher variation of beta = stronger seasonality driver
+# phi= 1.5# peak position ~ week 40 , but Belgium peak at week 48 or 49 (1.5,2.5)
+# y  <- beta0*(1+beta1*cos(2*pi*t/52+phi))
+# plot(t,y,type="l", xlab="time", ylab="wave")
 
 ######################################### #
 # SOLVE ODE                          ----
@@ -189,7 +189,7 @@ lines(out$time,out$I1*pop_size,col=2,lwd=2,type="b")
 get_sum_of_squares(out$I1[1:length(case_dt$cases)]*pop_size,case_dt$cases_ag1)
 
 # DEFINE FUNCTION TO RUN ODE WITH PARAMETER VECTOR X
-# x <- c(1.99, 0.65,1.5,-154, 1/200) #beta0[?] beta1(0,1],phi[1,2],shifting time, nu[1/160,1/230]#160-230 days
+# x <- c(1.99, 0.65,-154, 1/200) #beta0[?] beta1(0,1],phi[1,2],shifting time, nu[1/160,1/230]#160-230 days
 
 get_model_output <- function(x){
 
@@ -197,9 +197,8 @@ get_model_output <- function(x){
   params_fit = params
   params_fit["beta0"] = x[1]
   params_fit["beta1"] = x[2]
-  params_fit["phi"] =   x[3]
-  time_shift =x[4]
-  params_fit["nu"] = x[5]
+  time_shift =x[3]
+  params_fit["nu"] = x[4]
 
 
   # get output
@@ -255,10 +254,10 @@ plot_model_fit <- function(x){
 # num_days_infected <- 10 #[ 8-11]
 # num_days_exposed  <- 4  # [2,6]
 
-opt_param_sa <- optim_sa(fun = get_parameter_score, start = c(1.5,0.5,2.44,-465,7/350),
+opt_param_sa <- optim_sa(fun = get_parameter_score, start = c(1.9,0.65,-465,7/350),
                          trace = FALSE,
-                         lower = c(1,0.1,1,-600,7/350),#
-                         upper = c(3,1,3,-300,7/160),
+                         lower = c(1,0.1,-600,7/350),#
+                         upper = c(3,1,-300,7/160),
                          control = list(dyn_rf = FALSE,
                                         rf = 1.2,
                                         t0 = 10, nlimit = 500, r = 0.6, t_min = 0.1
@@ -266,11 +265,12 @@ opt_param_sa <- optim_sa(fun = get_parameter_score, start = c(1.5,0.5,2.44,-465,
 opt_param_sa
 plot_model_fit(opt_param_sa)
 
-# some good fit? 
-plot_model_fit(c(1.89,0.85,2.3,-465,0.015)) # 31792.37
-plot_model_fit(c(1.89,0.9,2.3,-465,0.02)) # 29127.2
-plot_model_fit(c(1.79,0.65,2.3,-569,0.03))# 43385.01
-plot_model_fit(c(1.80,0.69,2.5,-568,0.03)) #38927.28
-plot_model_fit(c(1.81,0.74,2.16,-571,0.03)) #27592.75 # is this the best?
+# [1]    2.16    0.75 -465.79    0.0
 
+# some good fit?
+plot_model_fit(c(1.78,0.63,-569,0.03))#33833.14
+plot_model_fit(c(1.79,0.68,-674,0.035))#32986.37
+plot_model_fit(c(1.8,0.7,-569,0.03))#31835.53
+plot_model_fit(c(1.89,0.85,-465,0.015))#27885
+plot_model_fit(c(1.81,0.74,-571,0.03)) #24836.87
 
