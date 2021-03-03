@@ -8,7 +8,7 @@ library(deSolve)
 library(ggplot2)
 
 #Changeable variables  ##########################
-p= 0.5 # vaccination proportion
+p=0 # vaccination proportion
 t_shift <- -515
 
 ######################################### #
@@ -89,9 +89,24 @@ sirv_func <- function(t, states, params) {
          
            if(t< 515){
              p_t <- 0
-           }else{
-             p_t <- p
+             }
+           if(t>= 515){
+             t_week = (t-515)%%52
+             if(floor(t_week) >= 36|floor(t_week) <= 8){
+               p_t <- p
+             }else{
+               p_t <- 0
+             }
            }
+         
+         # t_week = times[515:length(times)] #time point start to fit the data
+         # t_week = t_week - min(t_week) #rescale time points
+         # t_week = t_week%% 52
+         # if(floor(t_week) == 35){
+         #   p_t <- p
+         # }else{
+         #   p_t <- 0
+         # }
          
          # calculate state changes
          dS1 <- (1-p_t)* mu - beta*S1*(I1+alpha*I2) - eta1*S1 + nu*R1
@@ -190,7 +205,8 @@ plot(case_dt$week,
      xlab = "Time (weeks)",
      ylab = "Number of RSV reported",
      main= paste("Vaccination =",p),pch=19,
-     ylim = c(0, max(case_dt$cases_ag1)*1.5))
+     ylim = c(0, max(case_dt$cases_ag1)*1.5),
+     xlim = c(0,600))
 
 # plot initial model
 lines(out$time,out$I1*pop_size,col=2,lwd=2,type = "b")
