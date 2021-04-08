@@ -17,12 +17,12 @@ library(deSolve)
 library(ggplot2)
 
 #Changeable variables  ##########################
-p=0         # vaccinate a fraction p the target population##vacine coverage to be calcualted?
-e= 0.7         # vaccine efficacy is 70%
-t_shift <- 357 # optimized from fitting# this change up to what fitted set of params
-t_vac <- 0     # 0,52wk ## vaccination start't_vac'wks before the 1st epidemic(1st wk 2011)
-vac.target <- "newborn" # "newborn" or "AG1" or "both"
-vac.str <- "seasonal" # year-round or seasonal vaccination strategy will be applied.
+p = 0  # vaccinate a fraction p the target population##vacine coverage to be calcualted?
+e = 0.7              # vaccine efficacy is 70%
+t_shift = 462        # optimized from fitting# this change up to what fitted set of params
+t_vac = 0            # 0,52wk ## vaccination start't_vac'wks before the 1st epidemic(1st wk 2011)
+vac.target = "AG1"   # "newborn" or "AG1" or "both"
+vac.str = "year-round" # year-round or seasonal vaccination strategy will be applied.
 #7 epidemic years was fitted. An epidemic year will start from week 33 to week 32 next year
 #week0 (fitting curve)= week 33 of calendar year
 #vaccine period: week 33 to week 8 next year = 28wks
@@ -48,8 +48,8 @@ cov.annual.both    <- p + p*(1-p)
 ######################################### #
 #https://steemit.com/science/@fouad/x-history-of-math-symbols
 
-# pop_size          <- 11176549# Belgium pop size (average 2011-2018)
-pop_size          <- 11176549 # assuming RSV surveillance data cover only 50% of total RSV
+pop_size          <- 11176549# Belgium pop size (average 2011-2018)
+# pop_size          <- 11176549/2 # assuming RSV surveillance data cover only 50% of total RSV
 ag1_size          <- pop_size*1/80
 ag2_size          <- pop_size - ag1_size
 num_days          <- 500
@@ -63,19 +63,18 @@ infected_seeds    <- 100# ? 1= 1000 1% of children ???
 # the fitted parameters may be different between population size
 if(pop_size == 11176549){
   # set parameters
-  params     <- c(#sigma = 7/num_days_exposed,  #latent to infectious stage
-                  sigma = 1/0.57,              # latent to infectious stage
-                  #gamma = 7/num_days_infected,# recovery rate
-                   gamma = 1/1.4,               # recovery rate
+  params     <- c(sigma = 7/num_days_exposed,  #latent to infectious stage
+                  # sigma = 1/0.57,              # latent to infectious stage
+                  gamma = 7/num_days_infected,# recovery rate
+                  # gamma = 1/1.4,               # recovery rate
                   # nu=  7/num_days_waning,     # rate of loss of immunity
-                  nu=  0.032,                  # rat e of loss of immunity
-                  omega = 1/(28),
+                  nu=  0.038,                  # rat e of loss of immunity
                   eta1 = 1/(1*52),             # aging rate AG1
                   eta2 = 1/(79*52),            # aging rate AG2
                   mu = 1/(80*52),              # birth rate
-                  a = 0.85,                 # the degree of seasonality, range [0,1]
+                  a = 0.88,                 # the degree of seasonality, range [0,1]
                   phi = 3.1,                   # phase shift?
-                  b = 1.85,                    #average transmission rate
+                  b = 1.82,                    #average transmission rate
                   delta = 0.65,                # scaled susceptibility
                   alpha = 0.65                 # scaled infectiousness
   )
@@ -83,6 +82,8 @@ if(pop_size == 11176549){
     # plot_model_fit(c(1.85,0.85,3.1,-357,0.032)) #21605.41
   #sigma = 7/num_days_exposed, gamma = 7/num_days_infected
    # plot_model_fit(c(1.82,0.875,3.1,-462,0.034)) # 22313.57
+   # plot_model_fit(c(1.82,0.88,3.1,-462,0.038)) # 20915.97 => using
+   # plot_model_fit(c(1.83,0.88,3.1,-358,0.034)) # 37842.93 => scaled reported data
 
 }
 if(pop_size == 11176549/2){
@@ -93,7 +94,6 @@ if(pop_size == 11176549/2){
                   # gamma = 1/1.4,               # recovery rate
                   # nu=  7/num_days_waning,     # rate of loss of immunity
                   nu=  0.034,                  # rat e of loss of immunity
-                  omega = 1/(28),
                   eta1 = 1/(1*52),             # aging rate AG1
                   eta2 = 1/(79*52),            # aging rate AG2
                   mu = 1/(80*52),              # birth rate
@@ -179,21 +179,21 @@ sirv_func <- function(t, states, params) {
          # define variables
          beta <- b*(1+a*cos(2*pi*t/52+phi))
          
-         if(vac.str=="annual"){
+         if(vac.str=="year-round"){
            # vaccinate year-round
-           if(t<(t_shift-t_vac)){
+           if(t<(t_shift-t_vac)){ #t_vac=0 be default
              p <- 0
            }else {
              p <- p
            }
          }
-         else{
+         if(vac.str=="seasonal"){
            # Vaccinate seasonal: 3 months before the the epidemic start
-           if(t< t_shift){
+           if(t< (t_shift+32)){# skip 32 wks of 2011
              p <- 0
            }
-           if(t>= t_shift){
-             t_week = (t-t_shift)%%52
+           if(t>= (t_shift +32)){# start vaccination epidemic season 2011/2012
+             t_week = (t-t_shift+1)%%52
              if(floor(t_week) >= 33|floor(t_week) <= 8){
                p <- p
              }else{
@@ -211,17 +211,17 @@ sirv_func <- function(t, states, params) {
            
            dV1 <- p*e*mu - eta1*V1 
            
-           dS2 <- eta1*V1 + eta1*S1 - delta*beta*S2*(I1+alpha*I2) + nu*R2               - eta2*S2 
+           dS2 <- eta1*V1 +eta1*S1 - delta*beta*S2*(I1+alpha*I2) + nu*R2                - eta2*S2 
            dE2 <-          eta1*E1 + delta*beta*S2*(I1+alpha*I2) - sigma*E2             - eta2*E2 
            dI2 <-          eta1*I1                               + sigma*E2 - gamma*I2  - eta2*I2 
            dR2 <-          eta1*R1                               - nu*R2    + gamma*I2  - eta2*R2 
          }
          if(vac.target=="AG1"){
            # calculate state changes
-           dS1 <-         mu  - beta*S1*(I1+alpha*I2)  + nu*R1                - eta1*S1 - p*e*S1*omega
+           dS1 <-         mu  - beta*S1*(I1+alpha*I2)  + nu*R1                - eta1*S1 - p*e*S1
            dE1 <-               beta*S1*(I1+alpha*I2)  - sigma*E1             - eta1*E1
            dI1 <-                                        sigma*E1  - gamma*I1 - eta1*I1
-           dR1 <-                                      - nu*R1     + gamma*I1 - eta1*R1 - p*e*S1*omega
+           dR1 <-                                      - nu*R1     + gamma*I1 - eta1*R1 + p*e*S1
            
            dV1 <- 0
            
@@ -233,14 +233,14 @@ sirv_func <- function(t, states, params) {
          
          if(vac.target=="both"){
            # calculate state changes
-           dS1 <- (1-p*e)*mu  - beta*S1*(I1+alpha*I2)  + nu*R1                - eta1*S1 - p*e*S1*omega
+           dS1 <- (1-p*e)*mu  - beta*S1*(I1+alpha*I2)  + nu*R1                - eta1*S1 - p*e*S1
            dE1 <-               beta*S1*(I1+alpha*I2)  - sigma*E1             - eta1*E1
            dI1 <-                                        sigma*E1  - gamma*I1 - eta1*I1
-           dR1 <-                                      - nu*R1     + gamma*I1 - eta1*R1 + p*e*S1*omega
+           dR1 <-                                      - nu*R1     + gamma*I1 - eta1*R1 + p*e*S1
            
            dV1 <- p*e*mu - eta1*V1 
            
-           dS2 <- eta1*V1 + eta1*S1 - delta*beta*S2*(I1+alpha*I2) + nu*R2               - eta2*S2 
+           dS2 <- eta1*V1 +eta1*S1 - delta*beta*S2*(I1+alpha*I2) + nu*R2                - eta2*S2 
            dE2 <-          eta1*E1 + delta*beta*S2*(I1+alpha*I2) - sigma*E2             - eta2*E2 
            dI2 <-          eta1*I1                               + sigma*E2 - gamma*I2  - eta2*I2 
            dR2 <-          eta1*R1                               - nu*R2    + gamma*I2  - eta2*R2 
@@ -283,10 +283,9 @@ out$S <- out[,"S1"] + out[,"S2"]
 out$E <- out[,"E1"] + out[,"E2"]
 out$I <- out[,"I1"] + out[,"I2"]
 out$R <- out[,"R1"] + out[,"R2"]
-
-#Number of infected
-ag1_est <- floor(out$I1*pop_size)
-ag1_est_sum <- sum(ag1_est)
+out$v <- out[,"V1"]
+pop <- out$S + out$E +out$I + out$R + out$V
+# Vaccination dose
 
 dose_yearly.newborn <- floor(cov.annual.newborn*ag1_size*10)
 dose_yearly.both <- floor(cov.annual.both*ag1_size*10)
@@ -297,14 +296,14 @@ dose_seasonal.both <- floor(cov.sea.both*ag1_size*10)
 ##Number of each epidemic year
 ag1_est_year1 <- sum(floor(out$I1[33:(33+51)]*pop_size))#year 2011-2012
 ag1_est_year2 <- sum(floor(out$I1[85:(85+51)]*pop_size))
-ag1_est_year3 <- sum(floor(out$I1[136:(136+51)]*pop_size))
-ag1_est_year4 <- sum(floor(out$I1[188:(188+51)]*pop_size))
-ag1_est_year5 <- sum(floor(out$I1[240:(240+51)]*pop_size))
-ag1_est_year6 <- sum(floor(out$I1[292:(292+51)]*pop_size))
-ag1_est_year7 <- sum(floor(out$I1[344:(344+51)]*pop_size))
-ag1_est_year8 <- sum(floor(out$I1[396:(396+51)]*pop_size))
-ag1_est_year9 <- sum(floor(out$I1[448:(448+51)]*pop_size))
-ag1_est_year10 <- sum(floor(out$I1[500:(500+51)]*pop_size))
+ag1_est_year3 <- sum(floor(out$I1[137:(137+51)]*pop_size))
+ag1_est_year4 <- sum(floor(out$I1[189:(189+51)]*pop_size))
+ag1_est_year5 <- sum(floor(out$I1[241:(241+51)]*pop_size))
+ag1_est_year6 <- sum(floor(out$I1[293:(293+51)]*pop_size))
+ag1_est_year7 <- sum(floor(out$I1[345:(345+51)]*pop_size))
+ag1_est_year8 <- sum(floor(out$I1[397:(397+51)]*pop_size))
+ag1_est_year9 <- sum(floor(out$I1[449:(449+51)]*pop_size))
+ag1_est_year10 <- sum(floor(out$I1[501:(501+51)]*pop_size))
 
 case <- data.frame(c(ag1_est_year1,
                     ag1_est_year2,
@@ -318,7 +317,11 @@ case <- data.frame(c(ag1_est_year1,
                     ag1_est_year10))
 case$year <- seq(1:10)
 colnames(case)              <- c("case.a.year","year")
+#Total number of infected
+ag1_est <- floor(out$I1[33:552]*pop_size)# 10 epidemic years
+ag1_est_sum <- sum(ag1_est)
 case$ag1_est                <- rep(ag1_est_sum,10)
+
 case$dose_yearly.newborn    <- rep(dose_yearly.newborn,10)
 case$dose_yearly.both       <- rep(dose_yearly.both,10)
 case$dose_seasonal.newborn  <- rep(dose_seasonal.newborn,10)
@@ -339,9 +342,60 @@ case_dt$cases_ag1 <- round(case_dt$cases*pro.less1yr)
 case_dt$cases_ag2 <- case_dt$cases - case_dt$cases_ag1
 
 ######################################### #
-# MODEL FITTING                        ----
+# Plot Model fit                      ----
 ######################################### #
 
+# plot real data
+par(mfrow = c(1,1))
+plot(case_dt$week, # plot seasonal 
+     case_dt$cases_ag1,
+     xlab = "Time (weeks)",
+     ylab = "Number of RSV reported",
+     pch=19,col=1,
+     ylim = c(0, max(case_dt$cases_ag1)*1.2),
+     xaxt="none")# for later customizing
+axis(1,seq(0,350,by=50))# customize x-axis
+
+# plot initial model
+lines(out$time[1:length(case_dt$cases_ag1)],out$I1[1:length(case_dt$cases_ag1)]*pop_size,col=2,lwd=2,type = "b",pch=1)
+legend(309,1200, legend = c("observed","model fit"), col = c(1,2),lty=1:2,pch=c(19,1))
+# score for initial model
+get_sum_of_squares(out$I1[1:length(case_dt$cases)]*pop_size,case_dt$cases_ag1)
+
+
+# Vaccination effect:
+par(mfrow = c(1,1))
+plot(out$time, # plot seasonal 
+     out$I1*pop_size,
+     xlab = "Year",
+     ylab = "Number of RSV infection",
+     main= paste("Vaccination =",p,vac.str,vac.target),col=2,type = "l",lwd=2,
+     xlim = c(0,52*10),
+     xaxt="none")# for later customizing
+axis(1, at=seq(0,520,by=52),labels = c(0:10))
+
+
+# # Vaccination effect
+# par(mfrow = c(1,1))
+# plot(out$time, # plot seasonal
+#      out$I1*pop_size,
+#      xlab = "Year",
+#      ylab = "Number of RSV infection",
+#      main= paste("Vaccination fraction =",p),col=2,type = "l",lwd=2,
+#      xlim = c(0,52*10),
+#      xaxt="none")# for later customizing
+# axis(1, at=seq(0,520,by=52),labels = c(0:10))
+
+```
+
+# Optimizing parameters
+##original report data 
+
+```{r Fitting, echo=T, eval=F}
+#eval = F: preventing running codes
+######################################### #
+# Parameters optimizations                      ----
+######################################### #
 # DEFINE HELP FUNCTION TO CALCULATE SUM OF SQUARES
 get_sum_of_squares <- function(model_values,ref_values) {
   return(sum(sqrt((model_values-ref_values)^2)))
@@ -350,51 +404,6 @@ get_sum_of_squares <- function(model_values,ref_values) {
 # SET GOAL: to use the optimisation package
 library(Rcpp)
 library(optimization)
-
-# plot real data
-par(mfrow = c(1,1))
-plot(case_dt$week, # plot seasonal 
-     case_dt$cases_ag1,
-     xlab = "Time (weeks)",
-     ylab = "Number of RSV reported_AG1",
-     main= "model fitting",pch=19,
-     ylim = c(0, max(case_dt$cases_ag1)))
-
-# plot initial model
-lines(out$time[1:length(case_dt$cases_ag1)],out$I1[1:length(case_dt$cases_ag1)]*pop_size,col=2,lwd=2,type = "b")
-
-# plot(case_dt$week,
-#      case_dt$cases_ag2,
-#      xlab = "Time (weeks)",
-#      ylab = "Number of RSV reported_AG2",pch=19,
-#      ylim = c(0, max(case_dt$cases_ag2)*100))
-# 
-# # plot initial model
-# lines(out$time,out$I2*pop_size,col=2,lwd=2,type = "b")
-
-# Vaccination affect:
-
-par(mfrow = c(1,1))
-plot(out$time, # plot seasonal 
-     out$I1*pop_size,
-     xlab = "Time (weeks)",
-     ylab = "Number of RSV reported_AG1",
-     main= paste("Vaccination =",p,vac.str,vac.target),pch=19,col=2,type = "l",
-     xlim = c(0,52*10))
-
-# score for initial model
-get_sum_of_squares(out$I1[1:length(case_dt$cases)]*pop_size,case_dt$cases_ag1)
-
-
-
-```
-
-#Optimizing parameters
-```{r Fitting, echo=T, eval=T}
-#eval = F: preventing running codes
-######################################### #
-# Parameters optimizations                      ----
-######################################### #
 
 #DEFINE FUNCTION TO RUN ODE WITH PARAMETER VECTOR X
 x <- c(1.82, 0.76,2.8,-515,0.03) #b[?] a(0,1],phi[1,2],shifting time, nu[1/160,1/230]#160-230 days
@@ -464,10 +473,10 @@ plot_model_fit <- function(x){
 # opt_param_sa <- optim_sa(fun = get_parameter_score, start = c(1.8,0.1,1,-200,7/350),
 #                          trace = FALSE,
 #                          lower = c(1,0,1,-1000,7/350),#
-#                          upper = c(8,1,3,-100,7/160),
-#                          control = list(dyn_rf = TRUE,
+#                          upper = c(3,1,3,-100,7/160),
+#                          control = list(dyn_rf = F,
 #                                         rf = 1,
-#                                         t0 = 200, nlimit = 200, r = 0.6, t_min = 0.1
+#                                         t0 = 1000, nlimit = 100, r = 0.6, t_min = 0.1
 #                          ))$par
 # 
 # opt_param_sa
@@ -479,7 +488,10 @@ plot_model_fit <- function(x){
 # sigma = 1/0.57,gamma = 1/1.4
     # plot_model_fit(c(1.85,0.85,3.1,-357,0.032)) #21605.41
   #sigma = 7/num_days_exposed, gamma = 7/num_days_infected
-   # plot_model_fit(c(1.82,0.875,3.1,-462,0.034)) # 22313.57
+   # plot_model_fit(c(1.82,0.88,3.1,-462,0.038)) # 20915.97
+   # plot_model_fit(c(1.82,0.875,3.1,-462,0.034))# 22313.57
+   # plot_model_fit(c(1.82,0.88,3.1,-462,0.039)) # 23207.43
+   # plot_model_fit(c(1.82,0.88,3.1,-462,0.036)) # 24552.02
 
 
 # ################################# #
@@ -488,8 +500,153 @@ plot_model_fit <- function(x){
 
 # sigma = 1/0.57,gamma = 1/1.4
   # plot_model_fit(c(1.88,0.86,3.1,-462,0.034)) #24118.39
-#sigma = 7/num_days_exposed, gamma = 7/num_days_infected
-  #plot_model_fit(c(1.84,0.855,2.94,-411,0.034)) #22427.65
-
+# sigma = 7/num_days_exposed, gamma = 7/num_days_infected
+  # plot_model_fit(c(1.84,0.855,2.94,-411,0.034)) #22427.65
+  # plot_model_fit(c(1.84,0.855,2.89,-412,0.034)) #25994.06
+  # plot_model_fit(c(1.84,0.85,0.18,-539,0.034))  #30510.14
+  # plot_model_fit(c(1.84,0.855,2.89,-412,0.033)) #25994.06
 
 ```
+
+##Scaling report data 
+Assuming only 70% RSV cases are reported.
+
+```{r Fitting, echo=T, eval=T}
+#eval = F: preventing running codes
+######################################### #
+# Plot Model fit                      ----
+######################################### #
+
+# plot real data
+par(mfrow = c(1,1))
+plot(case_dt$week, # plot seasonal 
+     case_dt$cases_ag1/0.7,
+     xlab = "Time (weeks)",
+     ylab = "Number of RSV reported",
+     pch=19,col=1,
+     ylim = c(0, max(case_dt$cases_ag1/0.7)*1.2),
+     xaxt="none")# for later customizing
+axis(1,seq(0,350,by=50))# customize x-axis
+
+# plot initial model
+lines(out$time[1:length(case_dt$cases_ag1)],out$I1[1:length(case_dt$cases_ag1)]*pop_size,col=2,lwd=2,type = "b",pch=1)
+legend(309,1710, legend = c("observed","model fit"), col = c(1,2),lty=1:2,pch=c(19,1))
+
+
+# Vaccination effect:
+par(mfrow = c(1,1))
+plot(out$time, # plot seasonal 
+     out$I1*pop_size,
+     xlab = "Year",
+     ylab = "Number of RSV reported_AG1",
+     main= paste("Vaccination =",p,vac.str,vac.target),col=2,type = "l",lwd=2,
+     xlim = c(0,52*10),
+     xaxt="none")# for later customizing
+axis(1, at=seq(0,520,by=52),labels = c(0:10))
+
+# score for initial model
+get_sum_of_squares(out$I1[1:length(case_dt$cases)]*pop_size,case_dt$cases_ag1)
+######################################### #
+# Parameters optimizations                      ----
+######################################### #
+# DEFINE HELP FUNCTION TO CALCULATE SUM OF SQUARES
+get_sum_of_squares <- function(model_values,ref_values) {
+  return(sum(sqrt((model_values-ref_values)^2)))
+}
+
+# SET GOAL: to use the optimisation package
+library(Rcpp)
+library(optimization)
+
+#DEFINE FUNCTION TO RUN ODE WITH PARAMETER VECTOR X
+x <- c(1.82, 0.76,2.8,-515,0.03) #b[?] a(0,1],phi[1,2],shifting time, nu[1/160,1/230]#160-230 days
+
+get_model_output <- function(x){
+
+  # params_fitting
+
+  params_fit = params
+  params_fit["b"] = x[1]
+  params_fit["a"] = x[2]
+  params_fit["phi"] =   x[3]
+  time_shift =x[4]
+  params_fit["nu"] = x[5]
+
+  # get output
+  out <- data.frame(ode(func = sirv_func, y = states, times = seq(0,num_weeks,1), parms = params_fit))
+
+  # shift in time (fill with 0)
+  out <- approx(x   = out$time + time_shift,
+                y   = out$I1,
+                xout = seq(0,num_weeks,1),
+                rule = 2)
+  names(out) <- c('time','I1')
+
+  # rescale time points
+  out$time <- out$time - min(out$time)
+
+  # return output
+  return(out)
+}
+
+# HELP FUNCTION TO CALCULATE SUM OF SQUARES GIVEN PARAMETERS 'X'
+get_parameter_score <- function(x) {
+
+  # get model output given the parameters in "x"
+  model_out <- get_model_output(x)
+
+  # get model score
+  model_score <- get_sum_of_squares(model_out$I1*pop_size,case_dt$cases_ag1)
+
+  # return model score
+  return(model_score)
+}
+
+
+# HELP FUNCTION TO VISUALIZE THE MODEL FITTING
+plot_model_fit <- function(x){
+
+  # get model output given the parameters in "x"
+  model_out <- get_model_output(x)
+
+  # get model score
+  model_score <- get_sum_of_squares(model_out$I1[1:length(case_dt$cases)]*pop_size,case_dt$cases_ag1)
+
+  # plot reference data
+  plot(case_dt$week,
+       case_dt$cases_ag1/0.7,
+       ylim = c(0,max(case_dt$cases_ag1)*2),type = "b",pch=19,
+       main = paste('score:',round(model_score,digits = 2)))
+  # plot initial model
+  lines(model_out$time,model_out$I1*pop_size,col=2,lwd=1,type = "b")
+}
+
+##Optimizing parameters, by specifing lower and upper values
+# beta0[?] beta1(0,1],phi[1,2],shifting time, nu[1/160,1/230]#160-230 days
+# opt_param_sa <- optim_sa(fun = get_parameter_score, start = c(1.8,0.1,1,-200,7/350),
+#                          trace = FALSE,
+#                          lower = c(1,0,1,-1000,7/350),#
+#                          upper = c(3,1,3,-100,7/160),
+#                          control = list(dyn_rf = F,
+#                                         rf = 1,
+#                                         t0 = 1000, nlimit = 100, r = 0.6, t_min = 0.1
+#                          ))$par
+# 
+# opt_param_sa
+# plot_model_fit(opt_param_sa)
+
+################################# #
+# Scaling observed data 70%
+################################# #
+  # #sigma = 7/num_days_exposed, gamma = 7/num_days_infected
+   # plot_model_fit(c(1.83,0.88,3.1,-358,0.034)) # 37842.93
+   # plot_model_fit(c(1.853,0.935,3.1,-306,0.036)) #27397.85
+   # plot_model_fit(c(1.815,0.852,3.3,-357,0.035)) #37859.64
+   # plot_model_fit(c(1.829,0.886,3.1,-462,0.034))# 34028.22
+   # plot_model_fit(c(1.82,0.88,3.1,-462,0.039)) # 23207.43
+   # plot_model_fit(c(1.82,0.88,3.1,-462,0.036)) # 24552.02
+  
+  
+
+```
+
