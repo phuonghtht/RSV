@@ -11,20 +11,20 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# rm(list=ls())
+rm(list=ls())
 setwd("/home/phuong/phuonght/gitKraken_project/RSV")
 library(deSolve)
 library(ggplot2)
 
 #Changeable variables  ##########################
 #vaccinnation coverage = c+c1 ( 40%, 80%,): 
-coverage = 0.8   # 0.2,0.4,0.6,0.8,1
-c = coverage*1   # vaccinate a fraction p of newborn 
+coverage = 0.8   # 0.2,0.4,0.6,0.8
+c = coverage*1/2   # vaccinate a fraction p of newborn 
 c1= coverage-c       # vaccinate a fraction p of AG1 ( aged< 1 year)
 e = 0.7              # vaccine efficacy is 70%
 t_shift = 401        # optimized from fitting# this change up to what fitted set of params
-t_vac = 33           # wk29,33,37## vaccinating 3,2,1 month before the epidemic season starts at week 41st till the end of the season at wk 8 next year
-vac_str = "seasonal" # year-round or seasonal # vaccination strategy will be applied.
+t_vac = 9          # wk29,33,37## vaccinating 3,2,1 month before the epidemic season starts at week 41st till the end of the season at wk 8 next year
+vac_str = "year-round" # year-round or seasonal # vaccination strategy will be applied.
 
 #vaccine duration: 32, 28, 24 and 52 weeks are generalized as below:
 if(vac_str=="year-round"){
@@ -36,6 +36,7 @@ if(vac_str=="year-round"){
 report_rate <- 0.675   #assuming only 67.5% of RVS incidence are reported with those aged < 1
 
 # Re-calculate the coverage 
+#this code below limit c1 < 1 !!!!!!!!!!!
 if (c==1) { # avoid denominator =0 !
   p1 <- 0
   p  <- c*52/vac_period
@@ -45,7 +46,7 @@ if (c==1) { # avoid denominator =0 !
     p  <- c*52/vac_period
   }
 }else{
-  p1 <- c1/(1-c)/vac_period
+  p1 <- (-log(1-(c1/(1-c)))/vac_period) # c1/(1-c): coverageAG1, -log: S reduce by time
   p  <- c*52/vac_period
   if(p > 1){ # set the limit for p<=1
     p <-1
@@ -54,7 +55,8 @@ if (c==1) { # avoid denominator =0 !
   }
 }
 
-real_cov <- p/(52/vac_period) + p1*(1-c)*vac_period
+real_cov <- p/(52/vac_period) + c1
+real_cov
 
 ```
 Notes:
@@ -164,7 +166,7 @@ sirv_func <- function(t, states, params) {
                p  <- c*52/vac_period
              }
            }else{
-             p1 <- c1/(1-c)/vac_period
+             p1 <- (-log(1-(c1/(1-c)))/vac_period) # c1/(1-c): coverageAG1
              p  <- c*52/vac_period
              if(p > 1){ # set the limit for p<=1
                p <- 1
@@ -192,7 +194,7 @@ sirv_func <- function(t, states, params) {
                    p <- c*52/vac_period
                  }
                }else{
-                 p1 <- c1/(1-c)/vac_period
+                 p1 <- (-log(1-(c1/(1-c)))/vac_period) # c1/(1-c): coverageAG1
                  p  <- c*52/vac_period  # scaling dose if vaccination time is shorter?
                  if(p>1){ # set the limit for p<=1
                    p <-1
@@ -298,12 +300,12 @@ ag1_est <- floor(out$I1[33:552]*pop_size)# 10 epidemic years
 ag1_est_10yr <- sum(ag1_est)
 ag1_est_378wk <-sum(floor(out$I1[1:378]*pop_size))
 #saving file
-if(vac_str=="seasonal"){
-  write.csv(case, paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/estimated_case/case.est c=",c,"c1=",c1,vac_str,"wk",t_vac,".csv"),row.names = F)
-}
-if(vac_str=="year-round"){
-  write.csv(case, paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/estimated_case/case.est c=",c,"c1=",c1,vac_str,".csv"),row.names = F)
-}
+# if(vac_str=="seasonal"){
+#   write.csv(case, paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/estimated_case/case.est c=",c,"c1=",c1,vac_str,"wk",t_vac,".csv"),row.names = F)
+# }
+# if(vac_str=="year-round"){
+#   write.csv(case, paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/estimated_case/case.est c=",c,"c1=",c1,vac_str,".csv"),row.names = F)
+# }
 
 
 #BELGIUM DATA-----------------
@@ -327,14 +329,14 @@ par(mfrow = c(1,1))
 plot(case_dt$week, # plot seasonal 
      case_dt$cases_ag1,
      xlab = "Time (weeks)",
-     ylab = "Number of RSV reported",
+     ylab = "Number of RSV reported (age<1)",
      pch=19,col=1,
      ylim = c(0, max(case_dt$cases_ag1)*1.2),
      xaxt="none")# for later customizing
 axis(1,seq(0,350,by=50))# customize x-axis
 # plot initial model
 lines(out$time[1:length(case_dt$cases_ag1)],out$I1[1:length(case_dt$cases_ag1)]*pop_size*report_rate,col=2,lwd=2,type = "b",pch=1)
-legend(309,1200, legend = c("observed","model fit"), col = c(1,2),lty=1:2,pch=c(19,1))
+legend(315,1200, legend = c("observed","model fit"), col = c(1,2),lty=1:2,pch=c(19,1))
 
 
 # Vaccination effect:
@@ -813,7 +815,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_yr.nb$time,out4_yr.nb$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_yr.nb$time,out8_yr.nb$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "year-round, nb",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "year-round, nb",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##AG1
 plot(out1$time, # plot seasonal
@@ -828,7 +830,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_yr.AG1$time,out4_yr.AG1$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_yr.AG1$time,out8_yr.AG1$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "year-round, AG1",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "year-round, AG1",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##both
 plot(out1$time, # plot seasonal
@@ -843,7 +845,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_yr.both$time,out4_yr.both$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_yr.both$time,out8_yr.both$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "year-round, both",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "year-round, both",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 #wk33
 ##nb
@@ -859,7 +861,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk33.nb$time,out4_wk33.nb$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_wk33.nb$time,out8_wk33.nb$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "wk33-wk8, nb",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, nb",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##AG1
 plot(out1$time, # plot seasonal
@@ -874,7 +876,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk33.AG1$time,out4_wk33.AG1$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_wk33.AG1$time,out8_wk33.AG1$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "wk33-wk8, AG1",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, AG1",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##both
 plot(out1$time, # plot seasonal
@@ -889,7 +891,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk33.both$time,out4_wk33.both$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_wk33.both$time,out8_wk33.both$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "wk33-wk8, both",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, both",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 
 #wk37
@@ -906,7 +908,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk37.nb$time,out4_wk37.nb$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_wk37.nb$time,out8_wk37.nb$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "wk37-wk8, nb",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "wk37-wk8, nb",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##AG1
 plot(out1$time, # plot seasonal
@@ -921,7 +923,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk37.AG1$time,out4_wk37.AG1$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_wk37.AG1$time,out8_wk37.AG1$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "wk37-wk8, AG1",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "wk37-wk8, AG1",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##both
 plot(out1$time, # plot seasonal
@@ -936,7 +938,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk37.both$time,out4_wk37.both$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_wk37.both$time,out8_wk37.both$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1400, legend = c("0%","40%","80%"),title = "wk33-wk8, both",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, both",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 
 ```
@@ -964,7 +966,7 @@ CEA$prevented_case <-CEA$case_base -CEA$case_vac
 ##############################
 #Total cases from model prediction : Vaccine coverage =0.2 
 
-cov = 0.8
+cov = 0.6
 c_vaccine <- 70     # Cost of vaccine per person 
 
 # Number of infections : yearly
@@ -1173,7 +1175,7 @@ All_res$vac_cost[8] +All_res$outpatient_cost[8] + All_res$inpatient_cost[8]- $Co
   
 
 
-# write.csv(All_res,paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/CEA_analysis/CEA coverage",cov,"vac_cost",c_vaccine,".csv"))
+write.csv(All_res,paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/CEA_analysis/CEA coverage",cov,"vac_cost",c_vaccine,".csv"))
 
 mil<-1000000
 WTP <-35000
@@ -1251,6 +1253,7 @@ ggplot(CEA,aes(cost_perdose,ICER/1000,color=vac_str, shape=vac_str))+
     angle = 0, # mannually adjust the numerator/pi
     label = "WTP"
   )+
+  theme_bw()+   # change the background
   theme(legend.title = element_text(face = "bold", size=12),
         plot.title = element_text(size=12, hjust=0.5),
         axis.title.x = element_text(face = "bold"),
@@ -1331,15 +1334,15 @@ CEA$prevented_case <-CEA$case_base -CEA$case_vac
 
 #New facet label names for coverage variable
 cov.labs <- c("Coverage = 0.4","Coverage = 0.8") # new name
-cost.labs <- c("1dose = 25€","1dose = 45€","1dose = 50€")
+cost.labs <- c("1dose = 35€","1dose = 45€","1dose = 50€")
 names(cov.labs) <- c("0.4","0.8") # old name tobe replace
-names(cost.labs) <- c("25","45","50")
+names(cost.labs) <- c("35","45","50")
 
 mil<-1000000
 WTP <- 35000
 my_slope <- WTP/mil # WTP 
 
-ggplot(CEA[which(CEA$cost_perdose==25|
+ggplot(CEA[which(CEA$cost_perdose==35|
                  CEA$cost_perdose==45|
                  CEA$cost_perdose==50 ),], aes(QALY_gained,Incremental_Cost/mil,color=vac_str,shape=vac_str))+
   geom_point()+
@@ -1370,5 +1373,6 @@ ggplot(CEA[which(CEA$cost_perdose==25|
 
 
 ```
+
 
 
