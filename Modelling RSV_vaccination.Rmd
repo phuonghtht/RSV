@@ -11,33 +11,32 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-rm(list=ls())
+# rm(list=ls())
 setwd("/home/phuong/phuonght/gitKraken_project/RSV")
 library(deSolve)
 library(ggplot2)
 
 #Changeable variables  ##########################
 #vaccinnation coverage = c+c1 ( 40%, 80%,): 
-coverage = 0.8   # 0.2,0.4,0.6,0.8
-c = coverage*1/2   # vaccinate a fraction p of newborn 
+coverage = 0  # 0.2,0.4,0.6,0.8
+c = coverage*1/2     # vaccinate a fraction p of pregnant women-> maternal Abs protection
 c1= coverage-c       # vaccinate a fraction p of AG1 ( aged< 1 year)
 e = 0.7              # vaccine efficacy is 70%
 t_shift = 401        # optimized from fitting# this change up to what fitted set of params
-t_vac = 9          # wk29,33,37## vaccinating 3,2,1 month before the epidemic season starts at week 41st till the end of the season at wk 8 next year
-vac_str = "year-round" # year-round or seasonal # vaccination strategy will be applied.
+t_vac = 33           # wk29,33,37## vaccinating 3,2,1 month(s) before the epidemic season starts at week 41st till the end of the season at wk 8 next year
+vac_str = "seasonal" # year-round or seasonal # vaccination strategy will be applied.
 
-#vaccine duration: 32, 28, 24 and 52 weeks are generalized as below:
+#vaccine duration: 32, 28, 24, or 52 weeks are generalized as below:
 if(vac_str=="year-round"){
  vac_period = 52 
 }else{
   vac_period <- (52-t_vac+1+8)  # start vaccination from week 't_vac" this year to week 8 next year # 
 }
 
-report_rate <- 0.675   #assuming only 67.5% of RVS incidence are reported with those aged < 1
+report_rate <- 0.675   #assuming only 67.5% of RVS incidences (aged <1)  were reported
 
-# Re-calculate the coverage 
-#this code below limit c1 < 1 !!!!!!!!!!!
-if (c==1) { # avoid denominator =0 !
+# Transform c into p&p1
+if (c==1) { # avoid denominator=0 !
   p1 <- 0
   p  <- c*52/vac_period
   if(p > 1){ # set the limit for p<=1
@@ -45,7 +44,7 @@ if (c==1) { # avoid denominator =0 !
   }else{
     p  <- c*52/vac_period
   }
-}else{
+}else{ # c!=0
   p1 <- (-log(1-(c1/(1-c)))/vac_period) # c1/(1-c): coverageAG1, -log: S reduce by time
   p  <- c*52/vac_period
   if(p > 1){ # set the limit for p<=1
@@ -55,12 +54,18 @@ if (c==1) { # avoid denominator =0 !
   }
 }
 
+#growth rate
+#N(t) = N0*exp(rt)
+# log(N(t))=log(N0) + rt
+# rt = log(N(t))-log(N0)
+
+# Re-calculate the coverage 
 real_cov <- p/(52/vac_period) + c1
 real_cov
 
 ```
 Notes:
-The coverage value will be transformed into faction p(<1) and p1 in the dynamic model. if p>1,set p =1 , meaning that the coverage is not hold => recal calculate it for CEA analysis later 
+The coverage value will be transformed into fraction p(<1) and p1 in the dynamic model. if p>1, set p =1, meaning that the coverage is not held => recall calculate it for CEA analysis later.
 
 # Parameters
 ```{r}
@@ -73,8 +78,8 @@ ag1_size          <- pop_size*1/80
 ag2_size          <- pop_size - ag1_size
 num_days          <- 500
 num_weeks         <- 52*30
-num_days_infected <- 10  #[ 8-11], 6.7 is original estimate
-num_days_exposed  <- 4   # [2,6]
+num_days_infected <- 10  #[ 8-11], 10 is best fit, 6.7 is original estimate,
+num_days_exposed  <- 4   # [2,6] 4 is best fit
 num_days_waning   <- 200 # [148, 164] best fit
 infected_seeds    <- 100# ? 1= 1000 1% of children ??? 
 
@@ -103,13 +108,13 @@ infected_seeds    <- 100# ? 1= 1000 1% of children ???
 b <- 1.84
   # R0 <- b*sigma/(sigma+mu)*(gamma+mu)
 R0 <- params["b"]*params["sigma"]/((params["sigma"] + params["mu"])*(params["gamma"] + params["mu"]))
-R0
+R0  #2.62 ?
   
 ```
 
 # SEIRS with differnt intervention scenarios.
 *Vaccination period*
- - Seasonal : 1 or 2 months befor the season start
+ - Seasonal : 1  ( wk37-wk8) or 2 months (wk33-wk8) before the season start
  - year-round
 *Vaccination target*
  - newborn (maternal)
@@ -118,6 +123,8 @@ R0
 *Vaccine coverage*
  - 40%
  - 80%
+*Vaccine efficicy* = 70%
+
 ```{r Model structure, echo=T, eval=T}
 #eval = F: preventing running codes
 
@@ -126,7 +133,7 @@ R0
   E1 <- (infected_seeds*0.7)/(pop_size)
   I1 <- 0
   R1 <- 0
-  V1  <- 0
+  V1 <- 0
   E2 <- (infected_seeds*0.3)/(pop_size) # greater than 1 yrs old
   I2 <- 0
   R2 <- 0
@@ -299,7 +306,7 @@ case$vac_week <- t_vac
 ag1_est <- floor(out$I1[33:552]*pop_size)# 10 epidemic years
 ag1_est_10yr <- sum(ag1_est)
 ag1_est_378wk <-sum(floor(out$I1[1:378]*pop_size))
-#saving file
+# # saving file
 # if(vac_str=="seasonal"){
 #   write.csv(case, paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/estimated_case/case.est c=",c,"c1=",c1,vac_str,"wk",t_vac,".csv"),row.names = F)
 # }
@@ -380,8 +387,8 @@ axis(1, at=seq(0,520,by=52),labels = c(0:10))
 
 ```
 
-# Optimizing parameters
-##original report data 
+# Fitting
+##original report data: no scaling 
 ###Least square
 
 ```{r Fitting, echo=T, eval=F}
@@ -401,10 +408,10 @@ x <- c(1.82, 0.76,2.8,461,0.03) #b[?] a(0,1],phi[1,2],shifting time, nu[1/160,1/
 get_model_output <- function(x){
   # params_fitting
   params_fit = params
-  params_fit["b"] = x[1]
-  params_fit["a"] = x[2]
-  params_fit["phi"] =   x[3]
-  time_shift =x[4]
+  params_fit["b"]  = x[1]
+  params_fit["a"]  = x[2]
+  params_fit["phi"]= x[3]
+  time_shift       = x[4]
   params_fit["nu"] = x[5]
   # get output
   out <- data.frame(ode(func = sirv_func, y = states, times = seq(0,num_weeks,1), parms = params_fit))
@@ -462,19 +469,10 @@ plot_model_fit(opt_param_sa)
     # plot_model_fit(c(1.85,0.85,3.1,-357,0.032)) #21605.41
   #sigma = 7/num_days_exposed, gamma = 7/num_days_infected
    # plot_model_fit(c(1.82,0.88,3.1,-462,0.038)) # 20915.97
-   # plot_model_fit(c(1.82,0.875,3.1,-462,0.034))# 22313.57
-   # plot_model_fit(c(1.82,0.88,3.1,-462,0.039)) # 23207.43
-   # plot_model_fit(c(1.82,0.88,3.1,-462,0.036)) # 24552.02
-   # plot_model_fit(c(1.82,0.88,3.1,-461,0.037)) # 18337.04 # consider
-   # plot_model_fit(c(1.82,0.88,3.1,-462,0.037)) # 21000.11
-   # plot_model_fit(c(1.82,0.88,3.1,-462,0.039)) # 23207.43 #
-   # plot_model_fit(c(1.82,0.87,3.1,-462,0.036)) # 23207.43 #
-   # plot_model_fit(c(1.82,0.88,3.1,-462,0.036)) # 24552.02
-   
 
 ```
 
-## 67.5% Scaling report data 
+## Scaling:report data represents 67.5% of total RSV cases?  
 ### Least square
 Assuming 67.5% RSV cases are reported as the same rate of rotavirus.
 
@@ -592,7 +590,7 @@ plot_model_fit(fit$par)
 ######################################### #
 # Parameters optimizations                      ----
 ######################################### #
-
+par(mfrow=c(1,1)
 # SET GOAL: to use the optimisation package
 library(Rcpp)
 library(optimization)
@@ -664,6 +662,16 @@ fit<-optim(c(log(1.85),log(0.85),log(3.1),log(200),log(7/200)),
 par <- round(exp(fit$par),3)
 par
 
+# set.seed(9)
+# fit<-optim(c(log(1.85),log(0.85),log(3.1),log(400),log(7/200)),
+#            fn = get_parameter_score,
+#            lower = c(log(1),log(0.1),log(3),log(100),log(7/230)),
+#            upper = c(log(2),log(0.99),log(4),log(400),log(7/160)),
+#            hessian = TRUE,method=("L-BFGS-B"),
+#            control = list(trace=TRUE,factr=1e-8))
+# 
+# par <- round(exp(fit$par),3)
+# par
 
 
 # HELP FUNCTION TO VISUALIZE THE MODEL FITTING
@@ -699,17 +707,8 @@ plot_model_fit <- function(x){
 }
 
 plot_model_fit(fit$par)
-# plot_model_fit(c(log(1.84),log(0.899),log(4),log(400),log(0.03))) # 7936.4
-# plot_model_fit(c(log(1.84),log(0.899),log(4),log(402),log(0.03))) # 7755
 # plot_model_fit(c(log(1.84),log(0.899),log(4),log(401),log(0.03))) # 6181.19
 
-
-#[1]  0.6004835 -0.1221676  1.3674025  5.8583174 -3.2601691 #NLL:6863.6
- # ~ 1.82300000   0.88500000   3.92514170 350.13450006   0.03838191
-#1.81809030  0.82631195  3.96459003 90.76895906  0.03642838
-# [1]   1.87345939   0.97943156   2.99637269 254.24983006   0.03329303 
-# [1]   1.83636241   0.85147689   3.34478512 458.66374805   0.03570705
-#[1]   1.91130578  0.99921739  3.44664899 95.42278310  0.03679449
 
 ################################# #
 #calculating the confidence intervals for the parameter estimates:
@@ -730,9 +729,10 @@ estimate
 
 
 #Vaccination effect
+## All vaccination scenarios in one plot 
 ```{r, eval=F }
 #eval = F: preventing running codes
-#The rm(list=ls()) should be off to run and store all these subjects below in the enviroment 
+#The rm(list=ls()) should be off and set eval =T to run and store all these subjects below in the enviroment 
 
 # Change the name of "out" output with each scenarios
 if(coverage==0){
@@ -802,7 +802,7 @@ par(mfrow=c(3,3), tcl=-0.6, family="serif", mai=c(0.25,0.25,0.25,0.25)) # reduce
 
 # par(mfrow = c(3,3))
 #year-round
-##nb
+##maternal
 plot(out1$time, # plot seasonal
      out1$I1*pop_size,
      xlab = "Year",
@@ -815,7 +815,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_yr.nb$time,out4_yr.nb$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_yr.nb$time,out8_yr.nb$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1350, legend = c("0%","40%","80%"),title = "year-round, nb",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "year-round, maternal",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##AG1
 plot(out1$time, # plot seasonal
@@ -830,7 +830,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_yr.AG1$time,out4_yr.AG1$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_yr.AG1$time,out8_yr.AG1$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1350, legend = c("0%","40%","80%"),title = "year-round, AG1",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "year-round, aged <1",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##both
 plot(out1$time, # plot seasonal
@@ -860,8 +860,8 @@ plot(out1$time, # plot seasonal
      xaxt="none")# for later customizing
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk33.nb$time,out4_wk33.nb$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
-lines(out8_wk33.nb$time,out8_wk33.nb$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, nb",horiz = T,box.lty = 0,
+# lines(out8_wk33.nb$time,out8_wk33.nb$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
+legend(50,1350, legend = c("0%","40%"),title = "wk33-wk8, maternal",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##AG1
 plot(out1$time, # plot seasonal
@@ -876,7 +876,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk33.AG1$time,out4_wk33.AG1$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_wk33.AG1$time,out8_wk33.AG1$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, AG1",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, aged < 1",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##both
 plot(out1$time, # plot seasonal
@@ -895,7 +895,7 @@ legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, both",horiz = T
        col = c(1,2,3),lty=c(1,2,1))
 
 #wk37
-##nb
+##maternal
 plot(out1$time, # plot seasonal
      out1$I1*pop_size,
      xlab = "Year",
@@ -907,10 +907,10 @@ plot(out1$time, # plot seasonal
      xaxt="none")# for later customizing
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk37.nb$time,out4_wk37.nb$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
-lines(out8_wk37.nb$time,out8_wk37.nb$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1350, legend = c("0%","40%","80%"),title = "wk37-wk8, nb",horiz = T,box.lty = 0,
+# lines(out8_wk37.nb$time,out8_wk37.nb$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
+legend(50,1350, legend = c("0%","40%"),title = "wk37-wk8, maternal",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
-##AG1
+##aged < 1
 plot(out1$time, # plot seasonal
      out1$I1*pop_size,
      xlab = "Year",
@@ -923,7 +923,7 @@ plot(out1$time, # plot seasonal
 axis(1, at=seq(0,520,by=52),labels = c(0:10))
 lines(out4_wk37.AG1$time,out4_wk37.AG1$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
 lines(out8_wk37.AG1$time,out8_wk37.AG1$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
-legend(-40,1350, legend = c("0%","40%","80%"),title = "wk37-wk8, AG1",horiz = T,box.lty = 0,
+legend(-40,1350, legend = c("0%","40%","80%"),title = "wk37-wk8, aged < 1",horiz = T,box.lty = 0,
        col = c(1,2,3),lty=c(1,2,1))
 ##both
 plot(out1$time, # plot seasonal
@@ -943,11 +943,32 @@ legend(-40,1350, legend = c("0%","40%","80%"),title = "wk33-wk8, both",horiz = T
 
 ```
 
+## One_vaccination scenario
+```{r}
+par(mfrow = c(1,1), cex.axis=0.9)
+##both
+plot(out1$time, # plot seasonal
+     out1$I1*pop_size,
+     xlab = "Year",
+     ylab = "Number of RSV infections",
+     # main= paste("Vaccination fraction =",p),
+     col=1,type = "l",lwd=1,cex.lab=1.45,cex.axis=1.2,
+     xlim = c(0,52*10),
+     ylim = c(0,1300),
+     xaxt="none")# for later customizing
+axis(1, at=seq(0,520,by=52),labels = c(0:10), cex.axis=1.2)
+lines(out4_wk33.both$time,out4_wk33.both$I1*pop_size,col=2,lwd=2,type = "l",lty=2)
+lines(out8_wk33.both$time,out8_wk33.both$I1*pop_size,col=3,lwd=2,type = "l",lty=1)
+legend(5,1400, legend = c("0%","40%","80%"),title = "Vaccine coverage",horiz = T,box.lty = 0,
+       col = c(1,2,3),lty=c(1,2,1),cex = 1.5)
+
+
+```
+
 #CEA
 ##Input Data
 ```{r CEA, echo=T, eval=F}
-#eval = F: preventing running codes
-
+#eval = F: preventing running codes automatically.
 #Run all scenarios and save all in the same folder!
 ##read multiple files:
 library(base)
@@ -1174,8 +1195,7 @@ All_res$outpatient_cost <- All_res$disease_cost - All_res$inpatient_cost
 All_res$vac_cost[8] +All_res$outpatient_cost[8] + All_res$inpatient_cost[8]- $Cost_intervention[8]
   
 
-
-write.csv(All_res,paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/CEA_analysis/CEA coverage",cov,"vac_cost",c_vaccine,".csv"))
+# write.csv(All_res,paste("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/CEA_analysis/CEA coverage",cov,"vac_cost",c_vaccine,".csv"))
 
 mil<-1000000
 WTP <-35000
@@ -1211,15 +1231,19 @@ c_vaccine_base
 
 ### ICER vs vaccine cost
 ```{r vaccine cost, eval=F }
-#eval = F: preventing running codes
-
-
+#eval = F: preventing running codes automatically.
 ##read multiple files:
 library(base)
 library(ggplot2)
 
 CEA <- do.call(rbind, lapply(list.files("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/CEA_analysis", pattern = ".csv",ignore.case =T,full.names = T), read.csv, header=T))
 CEA$prevented_case <-CEA$case_base -CEA$case_vac
+#rename vac_str
+levels(CEA$vac_str)
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_wk33"] <- "aged<1_wk33"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_wk37"] <- "aged<1_wk37"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_yr"] <- "aged<1_yr"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="nb_yr"] <- "maternal_yr"
 
 #####################################
 # PSA analysis: Deterministic:choose values for one while keeping the rest constant
@@ -1229,10 +1253,15 @@ CEA$prevented_case <-CEA$case_base -CEA$case_vac
 # x vs. y : % change from baseline vaccine cost per dose vs. costs per QALY gained
 
 #New facet label names for coverage variable
+##Coverage 0.4 vs 0.8
 cov.labs <- c("Coverage = 0.4","Coverage = 0.8") # new name
 names(cov.labs) <- c("0.4","0.8") # old name
+##Coverage 0.4, 0.6, and 0.8
+cov.labs <- c("Coverage = 0.4","Coverage = 0.6","Coverage = 0.8") # new name
+names(cov.labs) <- c("0.4","0.6","0.8") # old name
 
-ggplot(CEA,aes(cost_perdose,ICER/1000,color=vac_str, shape=vac_str))+
+ggplot(CEA[which(CEA$vac_str!="nb_wk33"&CEA$vac_str!="nb_wk37"),], #&CEA$coverage!=0.6
+       aes(cost_perdose,ICER/1000,color=vac_str, shape=vac_str))+
   geom_line()+
   geom_point()+
   # ggtitle("CEA of immunization strategy for RSV ")+
@@ -1261,13 +1290,12 @@ ggplot(CEA,aes(cost_perdose,ICER/1000,color=vac_str, shape=vac_str))+
         strip.text = element_text(size=12, face = "bold"))
 
 
-
 ```
 
 
 ### Incremental cost vs vaccine cost
 ```{r vaccine cost, eval =F }
-#eval = F: preventing running codes
+#eval = F: preventing running codes automatically.
 
 ##read multiple files:
 library(base)
@@ -1283,15 +1311,20 @@ CEA <- do.call(rbind, lapply(list.files("/home/phuong/Dropbox/2.Master of Epidem
 # x vs. y : % change from baseline vaccine cost per dose vs. costs per QALY gained
 
 #New facet label names for coverage variable
+##Coverage 0.4 vs 0.8
 cov.labs <- c("Coverage = 0.4","Coverage = 0.8") # new name
 names(cov.labs) <- c("0.4","0.8") # old name
+##Coverage 0.4, 0.6, and 0.8
+cov.labs <- c("Coverage = 0.4","Coverage = 0.6","Coverage = 0.8") # new name
+names(cov.labs) <- c("0.4","0.6","0.8") # old name
 
-ggplot(CEA[which(CEA$cost_perdose!=0),],aes(cost_perdose,Incremental_Cost/1000000,color=vac_str, shape=vac_str))+
+ggplot(CEA[which(CEA$cost_perdose!=0),], #&CEA$coverage!=0.6
+       aes(cost_perdose,Incremental_Cost/1000000,color=vac_str, shape=vac_str))+
   geom_line()+
   geom_point()+
   # ggtitle("CEA of immunization strategy for RSV ")+
-   ylab ("Incremental_Cost (mil.€)")+
-   xlab ("Vaccine cost per dose (€)")+
+  ylab ("Incremental_Cost (mil.€)")+
+  xlab ("Vaccine cost per dose (€)")+
   scale_color_manual(values=c(rep(1,3), rep(3,3), rep(4, 3)), name="Vaccination strategy")+
   scale_shape_manual(values=rep(0:2, 3), name="Vaccination strategy")+
   facet_grid(.~coverage,
@@ -1314,15 +1347,13 @@ ggplot(CEA[which(CEA$cost_perdose!=0),],aes(cost_perdose,Incremental_Cost/100000
         strip.text = element_text(size=12,face = "bold"))
 
 
-
 ```
 
 
 ###CEA plane
-```{r CEA plane,eval=F}
+```{r CEA plane, eval=F}
 
-#eval = F: preventing running codes
-
+#eval = F: preventing running codes automatically.
 #Run all scenarios and save all in the same folder!
 ##read multiple files:
 library(base)
@@ -1330,24 +1361,35 @@ library(ggplot2)
 
 CEA <- do.call(rbind, lapply(list.files("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/CEA_analysis", pattern = ".csv",ignore.case =T,full.names = T), read.csv, header=T))
 CEA$prevented_case <-CEA$case_base -CEA$case_vac
+#rename vac_str
+levels(CEA$vac_str)
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_wk33"] <- "aged<1_wk33"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_wk37"] <- "aged<1_wk37"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_yr"] <- "aged<1_yr"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="nb_yr"] <- "maternal_yr"
 
 
 #New facet label names for coverage variable
+##Coverage 0.4 vs 0.8
 cov.labs <- c("Coverage = 0.4","Coverage = 0.8") # new name
-cost.labs <- c("1dose = 35€","1dose = 45€","1dose = 50€")
-names(cov.labs) <- c("0.4","0.8") # old name tobe replace
-names(cost.labs) <- c("35","45","50")
+names(cov.labs) <- c("0.4","0.8") # old name
+##Coverage 0.4, 0.6, and 0.8
+cov.labs <- c("Coverage = 0.4","Coverage = 0.6","Coverage = 0.8") # new name
+names(cov.labs) <- c("0.4","0.6","0.8") # old name
+
+cost.labs <- c("1dose = 35€","1dose = 40€","1dose = 50€")
+names(cost.labs) <- c("35","40","50")
 
 mil<-1000000
 WTP <- 35000
 my_slope <- WTP/mil # WTP 
-
-ggplot(CEA[which(CEA$cost_perdose==35|
-                 CEA$cost_perdose==45|
-                 CEA$cost_perdose==50 ),], aes(QALY_gained,Incremental_Cost/mil,color=vac_str,shape=vac_str))+
+ggplot(CEA[which(CEA$cost_perdose==35&CEA$vac_str!="nb_wk33"&CEA$vac_str!="nb_wk37"|
+                   CEA$cost_perdose==40&CEA$vac_str!="nb_wk33"&CEA$vac_str!="nb_wk37"|
+                   CEA$cost_perdose==50&CEA$vac_str!="nb_wk33"&CEA$vac_str!="nb_wk37"),],#&CEA$coverage!=0.6
+       aes(QALY_gained,Incremental_Cost/mil,color=vac_str,shape=vac_str))+
   geom_point()+
   # ggtitle("CEA of immunization strategy for RSV ")+
-   ylab (" Incremental cost ( mil.€ ) ")+
+  ylab (" Incremental cost ( mil.€ ) ")+
   scale_color_manual(values=c(rep(1,3), rep(3,3), rep(4, 3)), name="Vaccination strategy")+ 
   scale_shape_manual(values=rep(0:2, 3), name="Vaccination strategy")+
   geom_hline(yintercept = 0)+
@@ -1356,7 +1398,7 @@ ggplot(CEA[which(CEA$cost_perdose==35|
   facet_grid(cost_perdose~coverage,
              labeller = labeller(cost_perdose=cost.labs,coverage=cov.labs))+
   xlim (0,300)+
-  ylim (-10,40)+
+  ylim (-2,30)+
   annotate(
     "text",
     x = 150,
@@ -1374,5 +1416,73 @@ ggplot(CEA[which(CEA$cost_perdose==35|
 
 ```
 
+
+###CEA plane_single cost
+```{r CEA plane,eval=F}
+
+#eval = F: preventing running codes automatically.
+#Run all scenarios and save all in the same folder!
+##read multiple files:
+library(base)
+library(ggplot2)
+
+CEA <- do.call(rbind, lapply(list.files("/home/phuong/Dropbox/2.Master of Epidemiology_Antwerp/year 2/thesis/data analysis/csv_file/CEA_analysis", pattern = ".csv",ignore.case =T,full.names = T), read.csv, header=T))
+CEA$prevented_case <-CEA$case_base -CEA$case_vac
+#rename vac_str
+levels(CEA$vac_str)
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_wk33"] <- "aged<1_wk33"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_wk37"] <- "aged<1_wk37"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="AG1_yr"] <- "aged<1_yr"
+levels(CEA$vac_str)[levels(CEA$vac_str)=="nb_yr"] <- "maternal_yr"
+
+
+#New facet label names for coverage variable
+##Coverage 0.4 vs 0.8
+cov.labs <- c("Coverage = 0.4","Coverage = 0.8") # new name
+names(cov.labs) <- c("0.4","0.8") # old name
+##Coverage 0.4, 0.6, and 0.8
+cov.labs <- c("Coverage = 40%","Coverage = 0.6","Coverage = 80%") # new name
+names(cov.labs) <- c("0.4","0.6","0.8") # old name
+
+cost.labs <- c("1dose = 35€","1dose = 40€","1dose = 50€")
+names(cost.labs) <- c("35","40","50")
+
+mil<-1000000
+WTP <- 35000
+my_slope <- WTP/mil # WTP 
+ggplot(CEA[which(CEA$cost_perdose==40&CEA$vac_str!="nb_wk33"&CEA$vac_str!="nb_wk37"&CEA$coverage!=0.6),],#&CEA$coverage!=0.6
+       aes(QALY_gained,Incremental_Cost/mil,color=vac_str,shape=vac_str))+
+  geom_point(size=4)+
+  # ggtitle("CEA of immunization strategy for RSV ")+
+  ylab (" Incremental costs ( mil.€ ) ")+
+  xlab("Incremental Effectiveness (QALYs)")+
+  scale_color_manual(values=c(rep(1,3), rep(3,3), rep(4, 3)), name="Vaccination strategy")+ 
+  scale_shape_manual(values=rep(0:2, 3), name="Vaccination strategy")+
+  geom_hline(yintercept = 0)+
+  geom_vline(xintercept = 0)+
+  geom_abline(intercept=0, slope = my_slope , lty="dashed",col="red")+
+  facet_grid(cost_perdose~coverage,
+             labeller = labeller(cost_perdose=cost.labs,coverage=cov.labs))+
+  xlim (0,300)+
+  ylim (-1,14)+
+  annotate(
+    "text",
+    x = 150,
+    y = 150 * my_slope*1.1,
+    angle = atan(my_slope) * 4600/pi, # mannually adjust the numerator/pi
+    label = " Willingness-to-pay"
+  )+
+  theme_bw()+   # change the background
+  theme(legend.title = element_text(face = "bold", size=20),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(1,"cm"),
+        plot.title = element_text(size=12, hjust=0.5),
+        axis.title.x = element_text(face = "bold", size = 20),
+        axis.title.y = element_text(face="bold", size =20),
+        strip.text = element_text(size=20,face="bold"),
+        axis.text = element_text(size = 15, face = "bold"))
+
+
+```
 
 
